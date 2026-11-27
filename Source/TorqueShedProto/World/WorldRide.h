@@ -492,6 +492,7 @@ public:
 		int Dir = 0;
 		int Flags = 0;
 		bool LinesDrawn = false;   // [square T] (its lines painted with the junction's, along the through road's edge: only its triangle here)
+		bool PieceDrawn = false;   // [road rulebook B6] (a whole junction's piece paints it all, triangle too: here only its sign and the sat nav's word)
 		double Slant = 0.0;   // [square T] (a line across: how far further along it lies per metre to the left, to lie along the road it meets)
 	};
 	struct SideRoad

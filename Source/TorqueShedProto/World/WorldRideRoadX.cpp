@@ -250,7 +250,7 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 	};
 	for (const MappedMark& M : *List)
 	{
-		if (M.Along < From - 30.0 || M.Along > To + 30.0) continue;
+		if (M.Along < From - 30.0 || M.Along > To + 30.0 || M.PieceDrawn) continue;
 		const double Half = HalfAt(M.Along);
 		// Which lane the traffic it governs is in: the one coming towards a junction, keeping left in
 		// Britain. Not mapped: the lane heading for the road's nearer end (a junction, mostly).

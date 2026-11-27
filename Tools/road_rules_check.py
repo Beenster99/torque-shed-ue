@@ -297,11 +297,11 @@ def runs_following(pic, line, s0, s1, kinds=(2, 3), step=0.1, reach=1.5, hold=0.
 
 
 def marks_of(runs):
-    """Whole marks and gaps (not cut by the ends): lengths. Breaks under 0.3 m in a mark are mended first, and specks
+    """Whole marks and gaps (not cut by the ends): lengths. Breaks under 0.6 m in a mark are mended first (a 10 cm line slanting across the picture's 10 cm cells comes out dotted), and specks
     under 0.5 m dropped, so a mark cut by a junction's piece reads as one."""
     merged = []
     for r in runs:
-        if merged and (not r[2] and r[1] - r[0] < 0.3 or r[2] == merged[-1][2]):
+        if merged and (not r[2] and r[1] - r[0] < 0.6 or r[2] == merged[-1][2]):
             merged[-1] = (merged[-1][0], r[1], merged[-1][2])
         else:
             merged.append(r)
@@ -361,7 +361,7 @@ class Report:
         return ok
 
 
-def judge_junction(rec, rep, area):
+def judge_junction(rec, rep, area, others=()):
     arms = rec['arms']
     lines = arm_lines(rec)
     pic = Picture(rec)
@@ -512,11 +512,21 @@ def judge_junction(rec, rep, area):
             near = runs_along(pic, major, max(0.0, mid - 8.0), min(major.length(), mid + 8.0), 0.0)
             cover = sum(r[1] - r[0] for r in near if r[2]) / max(1e-9, sum(r[1] - r[0] for r in near))
             rep.check('C2', cover > 0.25, dict(where, onto=major_cls), 1.0, f"no centre line across the junction ({cover:.0%} painted)")
-            # (the pattern starts afresh at the junction's middle, where the two stretches of the through road meet, as a
-            # painter starts it at a junction: each side judged on its own, the marks and gaps cut at the middle not)
+            # (the pattern starts afresh at a junction, where two stretches of the through road meet, as a painter starts it:
+            # at this one's middle and at any other junction on the line within reach (a stagger's partner), each piece
+            # judged on its own, the marks and gaps cut there not)
+            cuts = [mid]
+            for ox, oz in others:
+                q = (ox - rec['x'], oz - rec['z'])
+                if math.hypot(*q) < 30.0:
+                    d, _, s_o, _ = major.nearest(q)
+                    if d < 4.0 and abs(s_o - mid) < 25.0 and abs(s_o - mid) > 1.0:
+                        cuts.append(s_o)
+            cuts = sorted(cuts)
             marks, gaps = [], []
-            for side in ([(a, min(b, mid), p) for a, b, p in runs if a < mid], [(max(a, mid), b, p) for a, b, p in runs if b > mid]):
-                m_, g_ = marks_of(side)
+            for lo, hi in zip([-1e18] + cuts, cuts + [1e18]):
+                piece = [(max(a, lo), min(b, hi), p) for a, b, p in runs if b > lo and a < hi]
+                m_, g_ = marks_of(piece)
                 marks += m_
                 gaps += g_
             if marks and gaps:
@@ -527,7 +537,7 @@ def judge_junction(rec, rep, area):
     return sum(len(v) for v in rep.breach.values()) == faults_before
 
 
-def judge_stretch(rec, rep, area):
+def judge_stretch(rec, rep, area, others=()):
     pic = Picture(rec)
     road = None
     for r in rec['roads']:
@@ -557,7 +567,37 @@ def judge_stretch(rec, rep, area):
         return
     # D1: the centre line's marks and gaps by the limit.
     if has_centre:
-        marks, gaps = marks_of(runs)
+        # (none of it within a junction's warning line, C6's: a stretch is only 50 m from the nearest junction, and the
+        # warning line reaches up to 63 m)
+        mph = road['mph'] or 30
+        wl = next(r for r in RULE['C6']['warning_line'] if mph <= r['max_mph'])
+        mm = wl['min_marks']
+        reach = (mm.get(str(mph), max(mm.values())) if isinstance(mm, dict) else mm) * (wl['mark'] + wl['gap']) + 1.0
+        keep = [(s0, s1)]
+        for ox, oz in others:
+            q = (ox - rec['x'], oz - rec['z'])
+            if math.hypot(*q) > 130.0:
+                continue
+            dq, _, sj, _ = line.nearest(q)
+            if dq > 12.0:
+                continue
+            nxt = []
+            for a, b in keep:
+                if sj + reach <= a or sj - reach >= b:
+                    nxt.append((a, b))
+                    continue
+                if sj - reach > a:
+                    nxt.append((a, sj - reach))
+                if sj + reach < b:
+                    nxt.append((sj + reach, b))
+            keep = nxt
+        marks, gaps = [], []
+        for a, b in keep:
+            if b - a < 15.0:
+                continue
+            m_, g_ = marks_of([(max(x, a), min(y, b), pp) for x, y, pp in runs if y > a and x < b])
+            marks += m_
+            gaps += g_
         if marks and gaps:
             row = next(r for r in RULE['D1']['centre_line'] if (road['mph'] or 30) <= r['max_mph'])
             m, g = sorted(marks)[len(marks) // 2], sorted(gaps)[len(gaps) // 2]
@@ -565,7 +605,8 @@ def judge_stretch(rec, rep, area):
                       f"centre line {pattern(marks, gaps)} (should be {row['mark']:g} m marks, {row['gap']:g} m gaps at {road['mph'] or 30} mph)")
     else:
         rep.notes['two-way stretches 5.5 m or wider with no centre line'] += 1
-    # D6: an edge line's outer side about 0.225 m in from the road's edge, 0.1 m wide.
+    # D6: an edge line's outer side about 0.225 m in from the road's edge, 0.1 m wide (to within a cell of the
+    # picture: a line slanting across the 0.1 m cells reads up to half a cell wider).
     for sg in (1.0, -1.0):
         found = []
         s = s0 + 2.0
@@ -573,6 +614,8 @@ def judge_stretch(rec, rep, area):
             p, d, h = line.at(s)
             n = mul(left(d), sg)
             # (out from the middle: where the surface ends, and the paint nearest it)
+            # (the edge as seen: the first cell past the line that is not road. The grass comes in over the tarmac's
+            # own edge, raggedly, so islands of tar beyond it are not the edge.)
             edge, lo, hi = None, None, None
             v = h - 1.0
             while v < h + 1.0:
@@ -580,8 +623,9 @@ def judge_stretch(rec, rep, area):
                 if k == 2:
                     lo = v if lo is None else lo
                     hi = v
-                if k in (1, 2, 3):
-                    edge = v
+                elif hi is not None and k not in (1, 3):
+                    edge = v - 0.05
+                    break
                 v += 0.05
             if lo is not None and edge is not None and hi > h - 0.8:
                 found.append((edge + 0.05 - hi - 0.025, hi - lo + 0.05))
@@ -591,7 +635,7 @@ def judge_stretch(rec, rep, area):
             widths = sorted(f[1] for f in found)
             inset, width = insets[len(insets) // 2], widths[len(widths) // 2]
             want = RULE['D6']['inset']
-            rep.check('D6', abs(inset - want) <= 0.1 and abs(width - RULE['D6']['width']['ordinary']) <= 0.04, dict(where, side='left' if sg > 0 else 'right'), abs(inset - want),
+            rep.check('D6', abs(inset - want) <= 0.1 and abs(width - RULE['D6']['width']['ordinary']) <= 0.06, dict(where, side='left' if sg > 0 else 'right'), abs(inset - want),
                       f"edge line {inset:.2f} m in from the edge, {width:.2f} m wide (should be {want} in, {RULE['D6']['width']['ordinary']} wide)")
 
 
@@ -782,18 +826,23 @@ def main(argv):
     for path in dumps:
         area = os.path.splitext(os.path.basename(path))[0]
         good = total = 0
+        others = []   # (every junction's middle in the area, for C6's cuts)
+        for line in open(path):
+            rec = json.loads(line)
+            if rec['t'] == 'jn':
+                others.append((rec['x'], rec['z']))
         for line in open(path):
             rec = json.loads(line)
             t = rec['t']
             if t == 'meta':
                 meta[area] = rec
             elif t == 'jn':
-                ok = judge_junction(rec, rep, area)
+                ok = judge_junction(rec, rep, area, others)
                 if ok is not None:
                     total += 1
                     good += ok
             elif t == 'stretch':
-                judge_stretch(rec, rep, area)
+                judge_stretch(rec, rep, area, others)
             elif t == 'ring':
                 judge_ring(rec, rep, area)
         per_area[area] = {'junctions': total, 'clean': good}

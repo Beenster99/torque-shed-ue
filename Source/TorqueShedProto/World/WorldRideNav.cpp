@@ -325,6 +325,91 @@ void RidePlan::PlaceJunctions(double RawLength)
 			Added = true;
 		}
 	}
+	// ([road rulebook B6] a junction built whole draws its own give-way lines, the ride's road hidden under it; but the ride's
+	// road still has each line's place, for the GIVE WAY sign beside it and the sat nav's word: on each of the ride's arms
+	// that is not the through road's and comes in, where the ride's road leaves the through road's carriageway, as the piece
+	// draws the line along that edge. The map's own give-way or stop there is moved to it.)
+	if (WholeJunctions)
+		for (size_t Ji = 0; Ji < WholeOf.size() && Ji < JunctionPlaces.size(); ++Ji)
+		{
+			const WholePlan& W = WholeOf[Ji];
+			const JunctionPlace& Jp = JunctionPlaces[Ji];
+			if (!W.Ok || W.Hide[1] <= W.Hide[0] || W.ArmSign.size() < Jp.Arms.size() || Jp.Ring >= 0 || Jp.Lights || Jp.Unpaved) continue;
+			std::vector<P2> ThroughLine;
+			int Through = 0;
+			double ThroughHalf = 0.0;
+			for (const JunctionArm& Arm : Jp.Arms)
+			{
+				if (!Arm.Through || Through >= 2) continue;
+				const std::vector<P2> L = Area.Roads.LineFrom(Arm.Edge, Arm.Node);
+				std::vector<P2> Piece;
+				double Gone = 0.0;
+				for (size_t K = 0; K < L.size(); ++K)
+				{
+					if (K > 0) Gone += L[K].DistanceTo(L[K - 1]);
+					Piece.push_back(L[K]);
+					if (Gone > 40.0) break;
+				}
+				if (Through == 0) ThroughLine.assign(Piece.rbegin(), Piece.rend());
+				else ThroughLine.insert(ThroughLine.end(), Piece.begin() + (Piece.empty() ? 0 : 1), Piece.end());
+				ThroughHalf = std::fmax(ThroughHalf, 0.5 * RoadLine::WidthOf(Area.Roads.ClassOf(Arm.Edge)));
+				++Through;
+			}
+			if (Through < 2 || ThroughLine.size() < 2) continue;
+			const auto OffThrough = [&ThroughLine](const P2& P)
+			{
+				double Near = 1e18;
+				for (size_t K = 0; K + 1 < ThroughLine.size(); ++K)
+				{
+					const P2 A = ThroughLine[K], D = ThroughLine[K + 1] - A, Q = P - A;
+					const double L2 = D.X * D.X + D.Z * D.Z, T = L2 > 1e-9 ? std::clamp((Q.X * D.X + Q.Z * D.Z) / L2, 0.0, 1.0) : 0.0;
+					Near = std::fmin(Near, P.DistanceTo(A + D * T));
+				}
+				return Near;
+			};
+			// (the junction's middle on the ride's road: its nearest point within the hidden stretch)
+			size_t Mid = Road.size();
+			for (size_t I = 0; I < Road.size(); ++I)
+				if (Road[I].Along >= W.Hide[0] && Road[I].Along <= W.Hide[1] && (Mid == Road.size() || Road[I].At.DistanceTo(Jp.At) < Road[Mid].At.DistanceTo(Jp.At))) Mid = I;
+			if (Mid == Road.size()) continue;
+			const double Centre = Road[Mid].Along;
+			for (size_t A = 0; A < Jp.Arms.size(); ++A)
+			{
+				const int Sign = W.ArmSign[A];
+				if (Sign == 0 || Jp.Arms[A].Through || !Jp.Arms[A].In) continue;
+				const int Way = -Sign;   // (the traffic coming in along it)
+				double Line = -1.0;
+				for (size_t I = Mid; ; I = Sign > 0 ? I + 1 : I - 1)
+				{
+					if (std::fabs(Road[I].Along - Centre) > 40.0) break;
+					if (OffThrough(Road[I].At) > ThroughHalf + 0.2) { Line = Road[I].Along; break; }
+					if ((Sign < 0 && I == 0) || (Sign > 0 && I + 1 >= Road.size())) break;
+				}
+				if (Line < 5.0 || Line > Length - 5.0) continue;
+				const double Reach = std::fabs(Centre - Line) + 30.0;
+				const auto Governs = [&](const MappedMark& M) { return (Centre - M.Along) * Way > -3.0 && (Centre - M.Along) * Way < Reach; };
+				if (std::any_of(MainMapped.begin(), MainMapped.end(), [&](const MappedMark& M) { return M.Kind == "traffic_signals" && Governs(M); })) continue;
+				bool Moved = false;
+				for (MappedMark& M : MainMapped)
+					if ((M.Kind == "give_way" || M.Kind == "stop") && Governs(M))
+					{
+						M.Along = Line + Way * 1.0;
+						M.Dir = Way;
+						M.PieceDrawn = true;
+						Moved = true;
+					}
+				if (!Moved)
+				{
+					MappedMark M;
+					M.Kind = "give_way";
+					M.Dir = Way;
+					M.Along = Line + Way * 1.0;   // (as the rule's: MappedMarks has it a metre before, as the traffic meets it)
+					M.PieceDrawn = true;
+					MainMapped.push_back(M);
+				}
+				Added = true;
+			}
+		}
 	if (Added) std::stable_sort(MainMapped.begin(), MainMapped.end(), [](const MappedMark& A, const MappedMark& B) { return A.Along < B.Along; });
 	std::sort(JunctionPaint.begin(), JunctionPaint.end(), [](const RoadMark& A, const RoadMark& B) { return A.From < B.From; });
 }
