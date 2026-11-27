@@ -512,7 +512,13 @@ def judge_junction(rec, rep, area):
             near = runs_along(pic, major, max(0.0, mid - 8.0), min(major.length(), mid + 8.0), 0.0)
             cover = sum(r[1] - r[0] for r in near if r[2]) / max(1e-9, sum(r[1] - r[0] for r in near))
             rep.check('C2', cover > 0.25, dict(where, onto=major_cls), 1.0, f"no centre line across the junction ({cover:.0%} painted)")
-            marks, gaps = marks_of(runs)
+            # (the pattern starts afresh at the junction's middle, where the two stretches of the through road meet, as a
+            # painter starts it at a junction: each side judged on its own, the marks and gaps cut at the middle not)
+            marks, gaps = [], []
+            for side in ([(a, min(b, mid), p) for a, b, p in runs if a < mid], [(max(a, mid), b, p) for a, b, p in runs if b > mid]):
+                m_, g_ = marks_of(side)
+                marks += m_
+                gaps += g_
             if marks and gaps:
                 row = next(r for r in RULE['C6']['warning_line'] if (major_mph or 30) <= r['max_mph'])
                 m, g = sorted(marks)[len(marks) // 2], sorted(gaps)[len(gaps) // 2]
