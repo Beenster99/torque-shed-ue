@@ -784,6 +784,82 @@ int RidePlan::WholeAt(int Which, int End) const
 	return It == WholeEnds.end() ? -1 : It->second.first;
 }
 
+bool RidePlan::WholeDashLineOf(int Ji, WholeDashLine& D) const
+{
+	using namespace WholeJunctionBits;
+	if (Ji < 0 || size_t(Ji) >= JunctionPlaces.size() || !WholeOf[size_t(Ji)].Ok || JunctionPlaces[size_t(Ji)].Made) return false;
+	const JunctionPlace& J = JunctionPlaces[size_t(Ji)];
+	const WholePlan& W = WholeOf[size_t(Ji)];
+	const Region& G = Area.Roads;
+	int Th[2] = {-1, -1};
+	for (size_t A = 0; A < J.Arms.size(); ++A)
+		if (J.Arms[A].Through) { if (Th[0] < 0) Th[0] = int(A); else if (Th[1] < 0) Th[1] = int(A); }
+	if (Th[1] < 0) return false;
+	{
+		Rect Around;
+		const double Pad = W.Reach + 8.0;
+		Around.X0 = J.At.X - Pad; Around.Z0 = J.At.Z - Pad; Around.X1 = J.At.X + Pad; Around.Z1 = J.At.Z + Pad;
+		LayBlocks(Around);
+	}
+	int Which[2], End[2];
+	double Base[2];
+	P2 At[2], Out[2];
+	for (int K = 0; K < 2; ++K)
+	{
+		const size_t A = size_t(Th[K]);
+		const int Sign = A < W.ArmSign.size() ? W.ArmSign[A] : 0;
+		Which[K] = Sign != 0 ? 0 : J.Arms[A].Edge + 1;
+		End[K] = Sign != 0 ? (Sign > 0 ? 0 : 1) : G.Edges[size_t(J.Arms[A].Edge)].A == J.Arms[A].Node ? 0 : 1;
+		if (Which[K] > 0 && SideOf(Which[K]) == nullptr) return false;
+		const std::vector<RoadPoint>& Pts = RoadOf(Which[K]);
+		if (Pts.size() < 2) return false;
+		Base[K] = Sign != 0 ? W.ArmAlong[A] : End[K] == 0 ? W.Cut[A] : Pts.back().Along - W.Cut[A];
+		RoadPoint P;
+		P2 Dir;
+		double Rise = 0.0;
+		if (!CutRow(Pts, Base[K], P, Dir, Rise)) return false;
+		At[K] = P.At;
+		Out[K] = End[K] == 0 ? Dir : Dir * -1.0;
+	}
+	// (A the ride's road's arm where one is: the ride's own lines never shift)
+	const int Ka = Which[0] != 0 && Which[1] == 0 ? 1 : 0, Kb = 1 - Ka;
+	D.A = Th[Ka]; D.B = Th[Kb];
+	D.AWhich = Which[Ka]; D.AEnd = End[Ka]; D.ABase = Base[Ka];
+	D.BWhich = Which[Kb]; D.BEnd = End[Kb]; D.BBase = Base[Kb];
+	D.From = At[Ka]; D.To = At[Kb];
+	if (!Crossing(D.From, Out[Ka], D.To, Out[Kb], D.Ctl) || D.Ctl.DistanceTo(J.At) > 30.0) D.Ctl = (D.From + D.To) * 0.5;
+	D.Length = 0.0;
+	P2 Last = D.From;
+	for (int S = 1; S <= 40; ++S)
+	{
+		const double T = S / 40.0;
+		const P2 Q = D.From * ((1 - T) * (1 - T)) + D.Ctl * (2 * T * (1 - T)) + D.To * (T * T);
+		D.Length += Q.DistanceTo(Last);
+		Last = Q;
+	}
+	// (in along A from its mouth: its along falls heading in where its mouth is at its start; the ride's road through on
+	// both arms: its along from one mouth to the other, stretched a little to the curve, in step at both)
+	D.X0 = D.ABase;
+	D.Rate = D.AEnd == 0 ? -1.0 : 1.0;
+	if (D.AWhich == 0 && D.BWhich == 0 && D.Length > 1.0) D.Rate = (D.BBase - D.ABase) / D.Length;
+	return true;
+}
+
+bool RidePlan::WholeDashOf(int Which, int End, double& Sign, double& Shift) const
+{
+	Sign = 1.0;
+	Shift = 0.0;
+	if (Which <= 0 || PaintOld) return false;
+	WholeDashLine D;
+	if (!WholeDashLineOf(WholeAt(Which, End), D) || D.BWhich != Which || D.BEnd != End) return false;
+	// (heading out of B's mouth its along grows where its mouth is at its start; the line across reaches it at X0 + Rate *
+	// Length, running on the way Rate does)
+	const double Xl = D.X0 + D.Rate * D.Length;
+	Sign = (D.Rate > 0.0 ? 1.0 : -1.0) * (End == 0 ? 1.0 : -1.0);
+	Shift = Xl - Sign * D.BBase;
+	return true;
+}
+
 bool RidePlan::CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint& P, P2& Dir, double& Rise)
 {
 	// (the point Along metres along a laid road, its heading and rise there, straight between its points)
@@ -1283,8 +1359,13 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	const auto Lined = [&](const MouthLine& M) { return RoadX::CentreLine(M.P.Lanes, M.P.OneWay, M.P.Half) && M.Paved && !SettsSurface(G.SurfaceOf(M.Edge)); };
 	if (Ta >= 0 && Tb >= 0 && Lined(Mouths[size_t(Ta)]) && Lined(Mouths[size_t(Tb)]))
 	{
-		const MouthLine& A = Mouths[size_t(Ta)];
-		const MouthLine& B = Mouths[size_t(Tb)];
+		// ([smooth junctions stage 6] from the ride's road's arm where one is, its dash pattern's along as WholeDashLineOf has
+		// it: the road beyond the other mouth told the same (WholeDashOf), so the line keeps step at both mouths)
+		WholeDashLine Dl;
+		const bool Stepped = !PaintOld && WholeDashLineOf(Ji, Dl);
+		const bool Swap = Stepped && Dl.A == Tb;
+		const MouthLine& A = Mouths[size_t(Swap ? Tb : Ta)];
+		const MouthLine& B = Mouths[size_t(Swap ? Ta : Tb)];
 		P2 Ctl;
 		if (!Crossing(A.P.At, A.Out, B.P.At, B.Out, Ctl) || Ctl.DistanceTo(J.At) > 30.0) Ctl = (A.P.At + B.P.At) * 0.5;
 		std::vector<P2> Line;
@@ -1293,6 +1374,7 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 			const double T = S / 40.0;
 			Line.push_back(A.P.At * ((1 - T) * (1 - T)) + Ctl * (2 * T * (1 - T)) + B.P.At * (T * T));
 		}
+		const double X0 = Stepped ? Dl.X0 : A.Base, Rate = Stepped ? Dl.Rate : A.End == 0 ? -1.0 : 1.0;
 		// ([smooth junctions stage 6, the road rulebook C2/C6] carried across as the junction warning line, 4 m marks with
 		// 2 m gaps, 6 with 3 above 40 mph (TSM5 table 5-1), in step with the road it comes in on (OnDash on that road's
 		// own along), the centre line's width. WHOLE_PAINTOLD: 3 m and 3 m from the mouth)
@@ -1323,7 +1405,7 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 				if (S < Steps)
 				{
 					const double Mid = Gone + Seg * (S + 0.5) / Steps;
-					On = RoadX::OnDash(A.End == 0 ? A.Base - Mid : A.Base + Mid, Dash);
+					On = RoadX::OnDash(X0 + Rate * Mid, Dash);
 				}
 				if (On && RunFrom < 0) RunFrom = S;
 				if (!On && RunFrom >= 0)
