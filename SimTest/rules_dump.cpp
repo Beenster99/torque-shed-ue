@@ -67,6 +67,13 @@ static void Picture(const RidePlan& Plan, const P2& C, std::vector<unsigned char
 		{
 			const int Last = std::min(First + 64, int(Pts.size()) - 1);
 			bool Close = Owner;
+			// (the ride's chunk where a whole junction's hidden stretch begins draws its piece: laid whenever that
+			// junction is in the picture, or a neighbour chunk hides the ride's road there with nothing in its place)
+			if (W == 0 && !Close)
+				for (const std::pair<double, int>& Hd : Plan.RideHides)
+					if (size_t(Hd.second) < Plan.JunctionPlaces.size() && Plan.JunctionPlaces[size_t(Hd.second)].At.DistanceTo(C) < Reach + 30.0 &&
+						Hd.first >= Pts[size_t(First)].Along && Hd.first < Pts[size_t(Last)].Along)
+						Close = true;
 			for (int I = First; I <= Last && !Close; ++I) Close = Pts[size_t(I)].At.DistanceTo(C) < Reach + 25.0;
 			if (!Close) continue;
 			RideMesh M;

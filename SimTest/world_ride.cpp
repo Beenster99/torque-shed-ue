@@ -207,6 +207,7 @@ int main(int Argc, char** Argv)
 		// [LiDAR stage 2] (WORLD_RIDE_LIDAR=0: the map's heights only, to compare; else a folder, or the repo's)
 		if (const char* Pri = std::getenv("WORLD_RIDE_PRIORITY"); Pri && std::string(Pri) == "0") RidePlan::NoJunctionPriority = true;   // [junction priority]
 		if (const char* Wh = std::getenv("WORLD_RIDE_WHOLE"); Wh && std::string(Wh) == "0") RidePlan::WholeJunctions = false;   // [smooth junctions] the old drawing, for before/after totals
+		if (const char* Et = std::getenv("WORLD_RIDE_EDGETRUE"); Et && std::string(Et) == "0") RidePlan::EdgeTrueRide = false;   // [road rulebook stage 3a] the old one-piece ride line, for before/after totals
 		if (const char* Mo = std::getenv("WORLD_RIDE_MONTH")) RidePlan::SeasonMonth = std::atoi(Mo);   // [farm machinery] (the ride's month: the fields' machines by season)
 		const char* LidarAt = std::getenv("WORLD_RIDE_LIDAR");
 		if (!LidarAt || std::string(LidarAt) != "0") SetLidarDirs({LidarAt ? std::string(LidarAt) : Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/lidar")});

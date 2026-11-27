@@ -749,9 +749,10 @@ void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, doub
 		for (int K = 1; K <= Steps; ++K) CurveLen += Curve(double(K) / Steps).DistanceTo(Curve(double(K - 1) / Steps));
 		// (U at the curve's start, and which way it runs along the curve)
 		double U0 = 0.0, Run = 1.0;
+		// ([road rulebook stage 3a] the ride's road's U where it is the through road again (RideDashU), running its way)
 		if (!HasMinor) U0 = 0.0;
-		else if (CameMinor) { U0 = RideA1 - CurveLen; Run = 1.0; }
-		else { U0 = RideA0; Run = 1.0; }
+		else if (CameMinor) { double Sg = 1.0; const double Ue = RideDashU(RideA1, Sg); Run = Sg; U0 = Ue - Sg * CurveLen; }
+		else { double Sg = 1.0; U0 = RideDashU(RideA0, Sg); Run = Sg; }
 		const RoadX::DashPattern Dash = RoadX::WarningDash(PaintMph(0, HasMinor ? (CameMinor ? RideA1 : RideA0) : J.Along, false));
 		PaintAlong(0.0, 0.0, RoadX::CentreHalfWidth(0.5 * (Half0 + Half1)) * 2.0, [&](double S) { return RoadX::OnDash(U0 + Run * S, Dash); });
 		// (the arm: U at its mouth is the curve's at that end; away from the junction U falls where the curve starts
@@ -763,8 +764,8 @@ void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, doub
 			const double Sign = Away * (Ar.End == 0 ? 1.0 : -1.0);
 			ThroughDash[static_cast<long long>(Ar.Sd->Edge) * 2 + Ar.End] = {Sign, UAtMouth - Sign * AlongAtMouth};
 		};
-		if (HasMinor && CameMinor) Tell(ArmX, U0, -1.0);
-		else if (HasMinor) Tell(ArmX, U0 + CurveLen, 1.0);
+		if (HasMinor && CameMinor) Tell(ArmX, U0, -Run);
+		else if (HasMinor) Tell(ArmX, U0 + Run * CurveLen, Run);
 		else
 		{
 			Tell(ArmA, U0, -1.0);

@@ -500,6 +500,189 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	}
 	Tell("Smoothing the road");
 	std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair, Tight);
+	std::vector<P2> RideLineU;   // [road rulebook stage 3a] (the run-true line's knots and their U, for RideU once laid)
+	std::vector<double> RideLineUs;
+	// [road rulebook stage 3a] (roads first, route second: the ride's road laid as the map's road is, whatever the route
+	// and whichever way it is ridden. Each run of the map's road between two junctions (through its plain points, the
+	// whole run even where the ride joins or leaves it partway) smoothed on its own, always from the same end, and the
+	// ridden part cut from it; no squaring or tightening for the route's turns, which the junctions built whole shape.
+	// Whaley Bridge forward and reversed drew 25 of 41 junctions differently for the ride's line alone)
+	if (WholeJunctions && EdgeTrueRide && !Path.empty())
+	{
+		// (the edge the same road goes on along past a node: through a plain point of the map, or through a junction of one
+		// point straight on along its through road; -1 where it ends, at any other junction or a ring)
+		const auto Onward = [&G, &R](int Nd, int Ed)
+		{
+			if (Nd < 0 || size_t(Nd) >= G.Adjacent.size() || R->RingAt(Nd) >= 0) return -1;
+			const std::vector<int>& Ad = G.Adjacent[size_t(Nd)];
+			if (Ad.size() == 2) return Ad[0] == Ed ? Ad[1] : Ad[0];
+			if (size_t(Nd) >= R->JunctionOfNode.size() || R->JunctionOfNode[size_t(Nd)] < 0) return -1;
+			const JunctionPlace& Jp = R->JunctionPlaces[size_t(R->JunctionOfNode[size_t(Nd)])];
+			if (Jp.Nodes.size() != 1 || Jp.Ring >= 0 || Jp.Lights || Jp.Dual) return -1;
+			int Mine = -1, Other = -1, Throughs = 0;
+			for (const JunctionArm& A : Jp.Arms)
+			{
+				if (!A.Through) continue;
+				++Throughs;
+				if (A.Edge == Ed) Mine = A.Edge;
+				else Other = A.Edge;
+			}
+			return Throughs == 2 && Mine >= 0 && Other >= 0 && Other != Ed ? Other : -1;
+		};
+		std::vector<P2> Edgy;
+		std::vector<double> EdgyU;   // (each knot's way along its run from the run's own first end)
+		std::vector<size_t> Seams;   // (the knots where one run meets the next: a junction's node)
+		int Node = From;
+		size_t I = 0;
+		while (I < Path.size())
+		{
+			// (the ride's own edges along this run, the same kind of road (a ring's or not))
+			const int RunFrom = Node;
+			size_t J = I;
+			int End = G.OtherEnd(Path[I], Node);
+			while (J + 1 < Path.size() && Onward(End, Path[J]) == Path[J + 1] && R->OnRoundRing(Path[J + 1]) == R->OnRoundRing(Path[I]))
+			{
+				++J;
+				End = G.OtherEnd(Path[J], End);
+			}
+			// (the whole run: on back and forward past where the ride joins and leaves it, as far as it goes)
+			std::vector<std::pair<int, int>> Back, Ahead;   // (edge, the node it is walked from)
+			{
+				std::set<int> Used;
+				for (size_t K = I; K <= J; ++K) Used.insert(Path[K]);
+				int Nd = RunFrom, Ed = Path[I];
+				for (int Guard = 0; Guard < 400; ++Guard)
+				{
+					const int Prev = Onward(Nd, Ed);
+					if (Prev < 0 || Used.count(Prev) != 0 || R->OnRoundRing(Prev) != R->OnRoundRing(Path[I])) break;
+					Used.insert(Prev);
+					const int Far = G.OtherEnd(Prev, Nd);
+					Back.emplace_back(Prev, Far);
+					Nd = Far;
+					Ed = Prev;
+				}
+				Nd = End;
+				Ed = Path[J];
+				for (int Guard = 0; Guard < 400; ++Guard)
+				{
+					const int Next = Onward(Nd, Ed);
+					if (Next < 0 || Used.count(Next) != 0 || R->OnRoundRing(Next) != R->OnRoundRing(Path[I])) break;
+					Used.insert(Next);
+					Ahead.emplace_back(Next, Nd);
+					Nd = G.OtherEnd(Next, Nd);
+					Ed = Next;
+				}
+			}
+			std::vector<std::pair<int, int>> Chain(Back.rbegin(), Back.rend());
+			double RawFrom = 0.0, RawTo = 0.0, RawLen = 0.0;
+			for (const std::pair<int, int>& C : Chain) RawFrom += G.Edges[size_t(C.first)].Length;
+			{
+				int Nd = RunFrom;
+				for (size_t K = I; K <= J; ++K) { Chain.emplace_back(Path[K], Nd); Nd = G.OtherEnd(Path[K], Nd); }
+			}
+			Chain.insert(Chain.end(), Ahead.begin(), Ahead.end());
+			// (the map's line of the whole run as ridden, and how far along it the ride's part starts and ends)
+			std::vector<P2> RunRaw;
+			std::vector<double> RunFair;
+			for (const std::pair<int, int>& C : Chain)
+			{
+				const std::vector<P2> Piece = G.LineFrom(C.first, C.second);
+				const double Fr = R->OnRoundRing(C.first) ? 0.0 : RoadLine::FairOf(G.ClassOf(C.first));
+				for (size_t K = RunRaw.empty() ? 0 : 1; K < Piece.size(); ++K) { RunRaw.push_back(Piece[K]); RunFair.push_back(Fr); }
+			}
+			for (size_t K = 1; K < RunRaw.size(); ++K) RawLen += RunRaw[K].DistanceTo(RunRaw[K - 1]);
+			{
+				double Ridden = 0.0;
+				for (size_t K = I; K <= J; ++K) Ridden += G.Edges[size_t(Path[K])].Length;
+				double EdgeSum = 0.0;
+				for (const std::pair<int, int>& C : Chain) EdgeSum += G.Edges[size_t(C.first)].Length;
+				const double Sc = EdgeSum > 1e-6 ? RawLen / EdgeSum : 1.0;
+				RawFrom *= Sc;
+				RawTo = RawFrom + Ridden * Sc;
+			}
+			// (smoothed from the same end whichever way it is ridden: the end with the lower node number first)
+			const int FirstNode = Chain.front().second, LastNode = G.OtherEnd(Chain.back().first, Chain.back().second);
+			const bool Flip = FirstNode > LastNode;
+			if (Flip) { std::reverse(RunRaw.begin(), RunRaw.end()); std::reverse(RunFair.begin(), RunFair.end()); }
+			std::vector<P2> Run = RunRaw.size() >= 2 ? RoadLine::SmoothLine(RunRaw, RoadLine::MinRadius, RunFair) : RunRaw;
+			if (Run.empty() || Run.front().DistanceTo(RunRaw.front()) > 0.3) Run.insert(Run.begin(), RunRaw.front());
+			if (Run.back().DistanceTo(RunRaw.back()) > 0.3) Run.push_back(RunRaw.back());
+			if (Flip) std::reverse(Run.begin(), Run.end());
+			// (the ridden part: by the share of the way along, smoothed as the map's)
+			double RunLen = 0.0;
+			std::vector<double> RunAt(Run.size(), 0.0);
+			for (size_t K = 1; K < Run.size(); ++K) RunAt[K] = RunLen += Run[K].DistanceTo(Run[K - 1]);
+			const double S0 = RawLen > 1e-6 ? RawFrom / RawLen * RunLen : 0.0, S1 = RawLen > 1e-6 ? RawTo / RawLen * RunLen : RunLen;
+			const auto At = [&Run, &RunAt](double S)
+			{
+				size_t K = 0;
+				while (K + 2 < Run.size() && RunAt[K + 1] < S) ++K;
+				const double T = std::clamp((S - RunAt[K]) / std::fmax(1e-9, RunAt[K + 1] - RunAt[K]), 0.0, 1.0);
+				return Run[K] + (Run[K + 1] - Run[K]) * T;
+			};
+			std::vector<P2> Part;
+			std::vector<double> PartS;
+			if (Run.size() >= 2)
+			{
+				Part.push_back(At(S0));
+				PartS.push_back(S0);
+				for (size_t K = 0; K < Run.size(); ++K)
+					if (RunAt[K] > S0 + 0.05 && RunAt[K] < S1 - 0.05) { Part.push_back(Run[K]); PartS.push_back(RunAt[K]); }
+				Part.push_back(At(S1));
+				PartS.push_back(S1);
+			}
+			else { Part = Run; PartS = RunAt; }
+			// (U: from the run's first end as smoothed, so the same knot has the same U however the run is ridden; runs
+			// apart by a kilometre each, so no two meet in step by chance)
+			const double UBase = 1000.0 * double(std::min(FirstNode, LastNode) % 100000);
+			if (!Edgy.empty()) Seams.push_back(Edgy.size() - 1);
+			for (size_t K = 0; K < Part.size(); ++K)
+				if (Edgy.empty() || Edgy.back().DistanceTo(Part[K]) > 0.05)
+				{
+					Edgy.push_back(Part[K]);
+					EdgyU.push_back(UBase + (Flip ? RunLen - PartS[K] : PartS[K]));
+				}
+			Node = End;
+			I = J + 1;
+		}
+		if (Edgy.size() >= 2)
+		{
+			RideLineU.assign(Edgy.begin(), Edgy.end());
+			RideLineUs.swap(EdgyU);
+			// (where the ride turns from one run to the next at a junction, its own way round: 20 m either side smoothed as
+			// a junction's corner is, tight where it turns hard; the rest of each run as the map's road. Within a junction
+			// built whole the piece is drawn over it; at one not, the turn rides as it did. Highland and York turns jolted
+			// on the bare corner)
+			for (size_t Q = Seams.size(); Q-- > 0;)
+			{
+				const size_t B = Seams[Q];
+				if (B == 0 || B + 1 >= Edgy.size()) continue;
+				size_t W0 = B, W1 = B;
+				double Gone = 0.0;
+				while (W0 > 0 && Gone < 20.0) { Gone += Edgy[W0].DistanceTo(Edgy[W0 - 1]); --W0; }
+				Gone = 0.0;
+				while (W1 + 1 < Edgy.size() && Gone < 20.0) { Gone += Edgy[W1 + 1].DistanceTo(Edgy[W1]); ++W1; }
+				if (W1 - W0 < 3) continue;
+				const P2 In = Edgy[B] - Edgy[W0], Out = Edgy[W1] - Edgy[B];
+				const double Li = In.Length(), Lo = Out.Length();
+				if (Li < 1.0 || Lo < 1.0) continue;
+				const double Turn = std::acos(std::clamp((In.X * Out.X + In.Z * Out.Z) / (Li * Lo), -1.0, 1.0));
+				if (Turn < 0.05) continue;
+				std::vector<P2> Win(Edgy.begin() + long(W0), Edgy.begin() + long(W1) + 1);
+				std::vector<double> WinFair(Win.size(), JunctionFair), WinTight(Win.size(), Turn > JunctionTurn ? RoadLine::JunctionRadius : 0.0);
+				WinFair.front() = WinFair.back() = 0.0;
+				std::vector<P2> Smooth = RoadLine::SmoothLine(Win, RoadLine::MinRadius, WinFair, WinTight);
+				if (Smooth.size() < 2) continue;
+				if (Smooth.front().DistanceTo(Win.front()) > 0.3) Smooth.insert(Smooth.begin(), Win.front());
+				if (Smooth.back().DistanceTo(Win.back()) > 0.3) Smooth.push_back(Win.back());
+				std::vector<P2> Next(Edgy.begin(), Edgy.begin() + long(W0));
+				Next.insert(Next.end(), Smooth.begin(), Smooth.end());
+				Next.insert(Next.end(), Edgy.begin() + long(W1) + 1, Edgy.end());
+				Edgy.swap(Next);
+			}
+			Line.swap(Edgy);
+		}
+	}
 	// [square T] (the turn at each such junction made exactly: straight in along the one road, round a
 	// circle of Radius, straight out along the other, a knot a metre round it; so the side road's inner corner
 	// is a tight kerb's, the main road's edges straight up to it, and the ride's line a sharp turn)
@@ -672,6 +855,26 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	std::vector<P2> Laid = Line;
 	ShiftLine(Laid, KnotShoulder, R->KeepLeft() ? 0.5 : -0.5);
 	R->LayRoad(Laid, Halves, Speeds, &KnotLanes, &KnotOneWay, &KnotShoulder);
+	// [road rulebook stage 3a] (each laid point's U, from the run-true knot it lies by: the knots and the points are the
+	// same but where a square turn was spliced in, so a walk along both finds it)
+	R->RideU.clear();
+	if (RideLineU.size() >= 2 && RideLineUs.size() == RideLineU.size())
+	{
+		R->RideU.resize(R->Road.size(), 0.0);
+		size_t K = 0;
+		for (size_t P = 0; P < R->Road.size(); ++P)
+		{
+			const P2 At = R->Road[P].At;
+			while (K + 2 < RideLineU.size() && RideLineU[K + 1].DistanceTo(At) <= RideLineU[K].DistanceTo(At) + 1e-9 && K < P + 4000) ++K;
+			// (between knot K and its nearer neighbour: by where it falls along that piece)
+			const size_t K0 = K > 0 && RideLineU[K - 1].DistanceTo(At) < RideLineU[std::min(K + 1, RideLineU.size() - 1)].DistanceTo(At) ? K - 1 : K;
+			const size_t K1 = std::min(K0 + 1, RideLineU.size() - 1);
+			const P2 D = RideLineU[K1] - RideLineU[K0];
+			const double L2 = D.X * D.X + D.Z * D.Z;
+			const double T = L2 > 1e-12 ? std::clamp(((At.X - RideLineU[K0].X) * D.X + (At.Z - RideLineU[K0].Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+			R->RideU[P] = RideLineUs[K0] + (RideLineUs[K1] - RideLineUs[K0]) * T;
+		}
+	}
 	// (where the last pin is on the road as laid: the run-out is past it)
 	R->FinishM = !RawAlong.empty() && RawAlong.back() > 1.0 ? std::fmin(R->Length, R->RunOutFrom * R->Length / RawAlong.back()) : R->Length;
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
@@ -4205,7 +4408,16 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 				const auto Dashes = [&](const RoadX::DashPattern& P, const auto& Draw)
 				{
 					// (in the pattern's own along U = Sign * along + Shift: marks [k * Cycle, k * Cycle + Mark))
-					const double Ua = DashSign * A.Along + DashShift, Ub = DashSign * B.Along + DashShift;
+					double Ua = DashSign * A.Along + DashShift, Ub = DashSign * B.Along + DashShift;
+					// ([road rulebook stage 3a] the ride's road's by the map's road's own way along, RideU: in step whatever
+					// the route; a stretch where two runs meet keeps the nearer one's)
+					if (Which == 0 && !RideU.empty())
+					{
+						double Sa = 1.0, Sb = 1.0;
+						const double Va = RideDashU(A.Along, Sa), Vb = RideDashU(B.Along, Sb);
+						if (std::fabs(std::fabs(Vb - Va) - (B.Along - A.Along)) < 0.3) { Ua = Va; Ub = Vb; }
+						else { Ua = Va; Ub = Va + Sa * (B.Along - A.Along); }
+					}
 					const double U0 = std::fmin(Ua, Ub), U1 = std::fmax(Ua, Ub);
 					for (double S0 = std::floor(U0 / P.Cycle) * P.Cycle; S0 < U1; S0 += P.Cycle)
 					{
