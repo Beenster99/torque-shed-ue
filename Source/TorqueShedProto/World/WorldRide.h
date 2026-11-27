@@ -2035,9 +2035,6 @@ public:
 		// which way out along the ride's road it heads (+1 the way along grows), and its mouth line's along
 		std::vector<int> ArmSign;
 		std::vector<double> ArmAlong;
-		// [smooth junctions stage 7] the far ends of its arms cut past the old room (to 3 m short of the junction there, not
-		// 7): (road + 1) * 2 + end; kept only where a whole junction claims that end too (their cuts shared, code 11)
-		std::vector<long long> Tight;
 	};
 	static bool WholeJunctions;
 	static bool EdgeTrueRide;   // [road rulebook stage 3a] the ride's road laid as the map's roads are, one run between junctions at a time, whatever the route (SimTest WORLD_RIDE_EDGETRUE=0: the old one-piece line)
