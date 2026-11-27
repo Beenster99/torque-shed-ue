@@ -3621,12 +3621,22 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 		if (ThroughAtEnd(Which, 0)) WarnZones.emplace_back(-1.0, RoadX::WarningReach(PaintMph(Which, 0.0, Street0)));
 		if (ThroughAtEnd(Which, 1)) WarnZones.emplace_back(Mine->Length - RoadX::WarningReach(PaintMph(Which, Mine->Length, Street1)), Mine->Length + 1.0);
 	}
-	// [road rulebook C6] (the dash step a whole junction's piece hands this road at either end: 1 and 0 where none)
+	// [road rulebook C6] (the dash step a whole junction's piece, or the warning line across a junction the ride gives
+	// way at, hands this road at either end: 1 and 0 where none)
 	double DashSign0 = 1.0, DashShift0 = 0.0, DashSign1 = 1.0, DashShift1 = 0.0;
 	if (Which > 0)
 	{
 		// (where only one end hands one on, the whole road keeps that step; where both do, each half the nearer end's)
-		const bool Has0 = WholeDashOf(Which, 0, DashSign0, DashShift0), Has1 = WholeDashOf(Which, 1, DashSign1, DashShift1);
+		const auto DashOf = [this, Mine, Which](int End, double& Sign, double& Shift)
+		{
+			if (WholeDashOf(Which, End, Sign, Shift)) return true;
+			const auto It = Mine->Edge >= 0 ? ThroughDash.find(static_cast<long long>(Mine->Edge) * 2 + End) : ThroughDash.end();
+			if (It == ThroughDash.end()) return false;
+			Sign = It->second.first;
+			Shift = It->second.second;
+			return true;
+		};
+		const bool Has0 = DashOf(0, DashSign0, DashShift0), Has1 = DashOf(1, DashSign1, DashShift1);
 		if (Has0 && !Has1) { DashSign1 = DashSign0; DashShift1 = DashShift0; }
 		if (Has1 && !Has0) { DashSign0 = DashSign1; DashShift0 = DashShift1; }
 	}
@@ -4181,7 +4191,10 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 			// one-way road's lanes and within each half of a wide two-way one: Britain's 4 m dashes, 5 m gaps)
 			// ([road rulebook D1, D5, C6] marks and gaps by the limit, cut to their own lengths within this stretch: the
 			// road's points lie 4 m apart, and a dash per stretch made every line 4 m marks with 4 or 8 m gaps)
-			if (!AcrossThrough && B.Along > A.Along + 1e-6)
+			// ([road rulebook C6] a stretch only partly across a through road keeps its lines up to where the line across
+			// takes over: LinesStopAt's own ends, not the whole 4 m stretch lost)
+			const bool AllAcross = Which == 0 && LinesStopAt(A.Along) && LinesStopAt(B.Along) && LinesStopAt(0.5 * (A.Along + B.Along));
+			if (!AllAcross && B.Along > A.Along + 1e-6)
 			{
 				const int Mph = PaintMph(Which, 0.5 * (A.Along + B.Along), StreetRow[K] != 0);
 				// ([road rulebook C6] in step with a whole junction's line across at the nearer end where its piece
@@ -4198,6 +4211,13 @@ void RidePlan::RoadPieceIn(int Which, int First, int Last, double KeepFrom, doub
 					{
 						double T0 = std::clamp((S0 - Ua) / (Ub - Ua), 0.0, 1.0), T1 = std::clamp((S0 + P.Mark - Ua) / (Ub - Ua), 0.0, 1.0);
 						if (T0 > T1) std::swap(T0, T1);
+						if (AcrossThrough)
+						{
+							// (cut back to where the ride's own lines stop, a 0.1 m step at a time)
+							const auto StopsAt = [&](double T) { return LinesStopAt(A.Along + (B.Along - A.Along) * T); };
+							while (T0 < T1 && StopsAt(T0)) T0 = std::fmin(T1, T0 + 0.1 / (B.Along - A.Along));
+							while (T1 > T0 && StopsAt(T1)) T1 = std::fmax(T0, T1 - 0.1 / (B.Along - A.Along));
+						}
 						if (T1 - T0 > 1e-4) Draw(T0, T1);
 					}
 				};

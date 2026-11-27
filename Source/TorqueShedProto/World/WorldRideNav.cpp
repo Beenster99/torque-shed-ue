@@ -202,6 +202,7 @@ void RidePlan::PlaceJunctions(double RawLength)
 	JunctionPaint.clear();
 	JunctionThroughCount = 0;
 	ThroughEnds.clear();
+	ThroughDash.clear();
 	FarEdges.clear();
 	if (Road.size() < 2) return;
 	const double Scale = RawLength > 1.0 ? Length / RawLength : 1.0;
@@ -737,8 +738,39 @@ void RidePlan::PaintThrough(const JunctionRule& J, double& In, double& Out, doub
 			Pa = A; Pc = C; Ph = H;
 		}
 	};
-	// (Britain's junction warning line down the middle: 6 m marks, 3 m gaps, a mark from the arm's mouth on)
-	if (Centre) PaintAlong(0.0, 0.0, 0.12, [](double S) { return std::fmod(S, 9.0) < 6.0; });
+	// (Britain's junction warning line down the middle: [road rulebook C6] 4 m marks with 2 m gaps, 6 with 3 above 40
+	// mph (RoadX::WarningDash), in step with the ride's road where it is the through road again: the pattern's own
+	// along U is the ride's along there, carried back along the curve; and the arm off the ride's road told the same
+	// (ThroughDash), so its line keeps step at its mouth)
+	if (Centre)
+	{
+		const int Steps = std::max(8, int(std::ceil(Span * 1.3 / 0.4)));
+		double CurveLen = 0.0;
+		for (int K = 1; K <= Steps; ++K) CurveLen += Curve(double(K) / Steps).DistanceTo(Curve(double(K - 1) / Steps));
+		// (U at the curve's start, and which way it runs along the curve)
+		double U0 = 0.0, Run = 1.0;
+		if (!HasMinor) U0 = 0.0;
+		else if (CameMinor) { U0 = RideA1 - CurveLen; Run = 1.0; }
+		else { U0 = RideA0; Run = 1.0; }
+		const RoadX::DashPattern Dash = RoadX::WarningDash(PaintMph(0, HasMinor ? (CameMinor ? RideA1 : RideA0) : J.Along, false));
+		PaintAlong(0.0, 0.0, RoadX::CentreHalfWidth(0.5 * (Half0 + Half1)) * 2.0, [&](double S) { return RoadX::OnDash(U0 + Run * S, Dash); });
+		// (the arm: U at its mouth is the curve's at that end; away from the junction U falls where the curve starts
+		// at the arm (the ride came in off the minor road) and grows where it ends there)
+		const auto Tell = [this](const Arm& Ar, double UAtMouth, double Away)
+		{
+			if (Ar.Sd == nullptr || Ar.M == nullptr || Ar.Sd->Edge < 0) return;
+			const double AlongAtMouth = Ar.End == 0 ? Ar.M->From : Ar.Sd->Length - Ar.M->From;
+			const double Sign = Away * (Ar.End == 0 ? 1.0 : -1.0);
+			ThroughDash[static_cast<long long>(Ar.Sd->Edge) * 2 + Ar.End] = {Sign, UAtMouth - Sign * AlongAtMouth};
+		};
+		if (HasMinor && CameMinor) Tell(ArmX, U0, -1.0);
+		else if (HasMinor) Tell(ArmX, U0 + CurveLen, 1.0);
+		else
+		{
+			Tell(ArmA, U0, -1.0);
+			Tell(ArmB, U0 + CurveLen, 1.0);
+		}
+	}
 	// (at a T, the side away from the ride's road that gives way: the far side)
 	const P2 Tm = Tangent(0.5), MidLeft(Tm.Z, -Tm.X);
 	const double Sign = MidLeft.X * Minor.X + MidLeft.Z * Minor.Z > 0.0 ? -1.0 : 1.0;

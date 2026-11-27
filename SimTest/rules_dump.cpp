@@ -49,7 +49,16 @@ static void Picture(const RidePlan& Plan, const P2& C, std::vector<unsigned char
 		const int Ow = Plan.WholeOf[size_t(It->second)].Owner;
 		if (std::find(Roads.begin(), Roads.end(), Ow) == Roads.end() && std::find(Owners.begin(), Owners.end(), Ow) == Owners.end()) Owners.push_back(Ow);
 	}
-	Roads.insert(Roads.end(), Owners.begin(), Owners.end());
+	// (and the owner of every junction built whole in the picture: its piece is drawn with the owner's end, which a
+	// neighbouring junction's picture would otherwise leave out, fens jn 6774 beside 5670)
+	for (size_t J = 0; J < Plan.WholeOf.size() && J < Plan.JunctionPlaces.size(); ++J)
+	{
+		if (!Plan.WholeOf[J].Ok || Plan.WholeOf[J].Owner <= 0 || Plan.JunctionPlaces[J].At.DistanceTo(C) > Reach + 30.0) continue;
+		const int Ow = Plan.WholeOf[J].Owner;
+		if (std::find(Owners.begin(), Owners.end(), Ow) == Owners.end()) Owners.push_back(Ow);
+	}
+	for (int Ow : Owners)
+		if (std::find(Roads.begin(), Roads.end(), Ow) == Roads.end()) Roads.push_back(Ow);
 	for (int W : Roads)
 	{
 		const std::vector<RoadPoint>& Pts = Plan.RoadOf(W);
