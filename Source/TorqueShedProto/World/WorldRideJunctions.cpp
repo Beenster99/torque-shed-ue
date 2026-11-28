@@ -92,6 +92,18 @@ void RidePlan::IndexJunctions()
 		for (int E : G.Adjacent[size_t(N)]) if (DualHalf(E)) return true;
 		return false;
 	};
+	// ([smooth junctions stage 7] a big ring the map draws that isn't round, a town's one-way loop (Bath, Plymouth: 40-150 m
+	// across, up to a dozen roads off): its points junctions of their own, built whole as any T or cluster on one-way
+	// roads; as one roundabout it was turned down (no kind), its old pieces stepped, half of them bad.
+	// WHOLE_GYROLD: one roundabout, as before)
+	static const bool GyrOld = std::getenv("WHOLE_GYROLD") != nullptr && std::getenv("WHOLE_GYROLD")[0] != '0';
+	const auto RingJ = [this](int N)
+	{
+		const int R = RingAt(N);
+		if (R < 0 || GyrOld) return R;
+		const RoadRing& Rr = RoadRings[size_t(R)];
+		return !Rr.Circle && !Rr.Mini && Rr.Radius >= WholeGyrLeast ? -1 : R;
+	};
 	std::vector<int> Up(static_cast<size_t>(NodeCount));
 	std::iota(Up.begin(), Up.end(), 0);
 	std::vector<char> Junction(size_t(NodeCount), 0);
@@ -99,10 +111,11 @@ void RidePlan::IndexJunctions()
 	{
 		size_t Real = 0;
 		for (int E : G.Adjacent[size_t(N)]) Real += Stub(E, N) ? 0 : 1;
-		Junction[size_t(N)] = Real >= 3 || RingAt(N) >= 0 ? 1 : 0;
+		Junction[size_t(N)] = Real >= 3 || RingJ(N) >= 0 ? 1 : 0;
 	}
 	// (a ring's points: one roundabout)
 	for (const RoadRing& R : RoadRings)
+		if (R.Nodes.empty() || RingJ(R.Nodes[0]) >= 0)
 		for (size_t I = 1; I < R.Nodes.size(); ++I) Join(Up, R.Nodes[0], R.Nodes[I]);
 	// (two junction points joined by a short edge: one junction; a slip's link or a dual's gap a little further)
 	std::vector<char> Merged(G.Edges.size(), 0);
@@ -110,8 +123,8 @@ void RidePlan::IndexJunctions()
 	{
 		const RoadEdge& Ed = G.Edges[size_t(E)];
 		if (Ed.A == Ed.B || !Junction[size_t(Ed.A)] || !Junction[size_t(Ed.B)]) continue;
-		if (RingAt(Ed.A) >= 0 && RingAt(Ed.B) >= 0) continue;   // (a ring's own: joined above; two rings apart stay apart)
-		if (RingAt(Ed.A) >= 0 || RingAt(Ed.B) >= 0) continue;   // (a road onto a ring is an arm of it, however short)
+		if (RingJ(Ed.A) >= 0 && RingJ(Ed.B) >= 0) continue;   // (a ring's own: joined above; two rings apart stay apart)
+		if (RingJ(Ed.A) >= 0 || RingJ(Ed.B) >= 0) continue;   // (a road onto a ring is an arm of it, however short)
 		bool Merge = Ed.Length <= JunctionMerge;
 		if (!Merge && Ed.Length <= JunctionGap && !DualHalf(E) && OnDual(Ed.A) && OnDual(Ed.B)) Merge = true;
 		if (!Merge && Ed.Length <= JunctionSlip && IsLink(E)) Merge = true;
@@ -130,7 +143,7 @@ void RidePlan::IndexJunctions()
 				const int K = G.OtherEnd(E2, M);
 				if (K == N || !Junction[size_t(K)] || G.Edges[size_t(E2)].Length > JunctionSlip) continue;
 				for (int E3 : G.Adjacent[size_t(K)])
-					if (G.OtherEnd(E3, K) == N && G.Edges[size_t(E3)].Length <= JunctionSlip * 1.5 && RingAt(N) < 0 && RingAt(M) < 0 && RingAt(K) < 0)
+					if (G.OtherEnd(E3, K) == N && G.Edges[size_t(E3)].Length <= JunctionSlip * 1.5 && RingJ(N) < 0 && RingJ(M) < 0 && RingJ(K) < 0)
 					{
 						Join(Up, N, M); Join(Up, M, K);
 					}
@@ -150,7 +163,7 @@ void RidePlan::IndexJunctions()
 		double Span = 0.0;
 		for (size_t I = 0; I < Ns.size(); ++I)
 			for (size_t J = I + 1; J < Ns.size(); ++J) Span = std::fmax(Span, G.Nodes[size_t(Ns[I])].DistanceTo(G.Nodes[size_t(Ns[J])]));
-		if (Span > JunctionSpanMost && RingAt(Ns[0]) < 0)
+		if (Span > JunctionSpanMost && RingJ(Ns[0]) < 0)
 			for (int N : Ns) Sets.push_back({N});
 		else Sets.push_back(Ns);
 	}
@@ -159,7 +172,7 @@ void RidePlan::IndexJunctions()
 	{
 		JunctionPlace J;
 		J.Nodes = Ns;
-		const int Ring = RingAt(Ns[0]);
+		const int Ring = RingJ(Ns[0]);
 		J.Ring = Ring;
 		const auto In = [&Ns](int N) { return std::binary_search(Ns.begin(), Ns.end(), N); };
 		P2 Sum(0.0, 0.0);
