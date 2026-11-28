@@ -45,7 +45,11 @@ const bool RoomOld = WhyOn("WHOLE_ROOMOLD");   // (the checker can compare the a
 const bool BothDown = WhyOn("WHOLE_BOTHDOWN");   // (the checker can turn both down as before)
 const bool InnerOld = WhyOn("WHOLE_INNEROLD");
 const bool InsideOld = WhyOn("WHOLE_INSIDEOLD");
-const bool CornerOld = WhyOn("WHOLE_CORNEROLD");   // (the checker can turn down for room without trying tight corners)
+const bool CornerOld = WhyOn("WHOLE_CORNEROLD");
+// ([stage 7] a piece's arms blended by 1/d^2 of nearness to each, not 1/d^4: on a hill the fourth power kept each arm's
+// own height near it and climbed between them in a step, the piece terraced, flat then steep, Hebden Bridge's spikes.
+// WHOLE_BLENDPOW: another power, 4 as before)
+const double BlendPow = WhyOn("WHOLE_BLENDPOW") ? std::atof(std::getenv("WHOLE_BLENDPOW")) : 2.0;   // (the checker can turn down for room without trying tight corners)
 const bool GapOld = WhyOn("WHOLE_GAPOLD");
 const bool DualCrossOld = WhyOn("WHOLE_DUALCROSSOLD");   // (the checker can turn down two duals crossing as before)   // (the checker can turn down a dual's gaps as before)
 const bool SlipOld = WhyOn("WHOLE_SLIPOLD");   // (the checker can turn down a slip's triangle as before)
@@ -1247,8 +1251,24 @@ bool RidePlan::WholeNear(int Which, const P2& At) const
 	if (!WholeJunctions) return false;
 	const auto It = WholeArmsOf.find(Which);
 	if (It == WholeArmsOf.end()) return false;
+	// ([stage 7] up to its own mouth and a little past, not the whole piece's reach: an arm cut short beside one cut long
+	// was left unsettled out to the long one's mouth, two one-way roads side by side into a roundabout overlapping at their own
+	// heights 10-40 cm apart under the island's hatching, 50-80 m2 of steps a ring, Newcastle, Scarborough, Swindon.
+	// WHOLE_NEAROLD: the piece's reach)
+	static const bool NearOld = WhyOn("WHOLE_NEAROLD");
 	for (int Ji : It->second)
-		if (At.DistanceTo(JunctionPlaces[size_t(Ji)].At) < WholeOf[size_t(Ji)].Reach) return true;
+	{
+		const WholePlan& W = WholeOf[size_t(Ji)];
+		double Reach = W.Reach;
+		if (!NearOld && !W.Cut.empty())
+		{
+			const JunctionPlace& J = JunctionPlaces[size_t(Ji)];
+			const double Most = *std::max_element(W.Cut.begin(), W.Cut.end());
+			for (size_t A = 0; A < J.Arms.size() && A < W.Cut.size(); ++A)
+				if (J.Arms[A].Edge + 1 == Which) { Reach = W.Reach - (Most - W.Cut[A]); break; }
+		}
+		if (At.DistanceTo(JunctionPlaces[size_t(Ji)].At) < Reach) return true;
+	}
 	return false;
 }
 
@@ -1535,7 +1555,7 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 		for (size_t I = 0; I < Count && I < 8; ++I)
 		{
 			if (OnlyThrough && int(I) != ThroughA && int(I) != ThroughB) continue;
-			double Wt = 1.0 / std::pow(Dc[I] + 0.25, 4.0);
+			double Wt = 1.0 / std::pow(Dc[I] + 0.25, BlendPow);
 			for (size_t K = 0; K < Count && K < 8; ++K)
 				if (K != I && (!OnlyThrough || int(K) == ThroughA || int(K) == ThroughB)) Wt *= Ease01(Dm[K] / 2.0);
 			Sum += Wt * RoadSurface(Mouths[I], At);
