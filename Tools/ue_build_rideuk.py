@@ -2421,8 +2421,9 @@ def prop_kit(L):
             for n in names:
                 add(n, walls[n], False, row, wall_tints[size_of(n) // WALL_VARIANTS])
             continue
-        if float(row.get("height", 1.0)) <= 0.0:
-            # (the facade kit's: in order of size, the game's Variant)
+        if float(row.get("height", 1.0)) <= 0.0 and any(n.startswith("SM_Prop_%s_" % kind) for n in facade):
+            # (the facade kit's: in order of size, the game's Variant. [Nov 28] Only a kind the facade kit has:
+            # another kind of height 0, drawn as modelled (the house bikes), is one of ours, below.)
             for name, mesh in sorted(facade.items(), key=lambda kv: size_of(kv[0])):
                 if name.startswith("SM_Prop_%s_" % kind) and size_of(name) >= 0 and name[len("SM_Prop_%s_" % kind):].isdigit():
                     add(name, mesh, False, row, facade_paint)
