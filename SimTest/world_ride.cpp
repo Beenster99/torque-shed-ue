@@ -3287,6 +3287,7 @@ int main(int Argc, char** Argv)
 						const size_t K = size_t(Cz) * JCells + Cx;
 						const double Px = -Reach + (Cx + 0.5) * Cell, Pz = -Reach + (Cz + 0.5) * Cell;
 						if (std::hypot(Px, Pz) > Reach || Hi[K] < -1e8f || Rough[K]) continue;
+						if (Plan->InCarPark(C.X + Px, C.Z + Pz) || Plan->OnForecourt(C.X + Px, C.Z + Pz)) continue;   // (their own tarmac)
 						bool Close = false;
 						for (const Seg& Sg : Segs)
 						{

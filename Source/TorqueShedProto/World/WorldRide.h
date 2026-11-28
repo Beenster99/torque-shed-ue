@@ -2047,6 +2047,7 @@ public:
 	std::unordered_map<int, int> WholeInside;   // a road wholly inside a whole junction (not drawn) -> the junction
 	std::unordered_map<int, std::vector<int>> WholeArmsOf;   // a road -> the whole junctions it is an arm of
 	void PlanWholeJunctions(const std::vector<int>& Path);   // (Path: the ride's road's edges, as LaySides has them)
+	double WholeFillOf(const JunctionPlace& J, const std::vector<JunctionArm>& Arms, const std::vector<double>& Half, const WholePlan& W) const;   // [stage 7] tarmac a planned piece lays over 4 m off every road (m2)
 	double WholeCut(int Which, int End) const;   // how far in from that end a road stops for its whole junction, 0 none
 	int WholeAt(int Which, int End) const;       // the whole junction at a road's end, -1 none
 	// [smooth junctions stage 6] The through road's centre line across a whole junction, as its warning line: from arm A's
