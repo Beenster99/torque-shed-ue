@@ -642,13 +642,16 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		const bool Slip = !SlipOld && J.Kind == EJunction::Slip;
 		// ([stage 7] a mini roundabout: one piece across, its little ring of roads inside it, the dome painted on (Swindon:
 		// its old pieces stepped and showed grass between the ring's short roads). WHOLE_MINIOLD: as before)
-		const bool MiniWhole = !MiniOld && J.Kind == EJunction::Mini && J.Arms.size() >= 3 && J.Arms.size() <= 6;
+		const RoadRing* const MapRing = J.Ring >= 0 && size_t(J.Ring) < RoadRings.size() ? &RoadRings[size_t(J.Ring)] : nullptr;
+		if (WhyOn("WHOLE_WHY") && J.Kind == EJunction::Ring && MapRing != nullptr && !MapRing->Circle) std::printf("ringmap node %d radius %.1f stray %.1f arms %zu span %.1f\n", J.Nodes.empty() ? -1 : J.Nodes[0], MapRing->Radius, MapRing->Stray, J.Arms.size(), J.Span);
+		// ([stage 7] and a compact ring not drawn round (the map's own, under 12 m across): the same, one piece across)
+		const bool MiniWhole = !MiniOld && (J.Kind == EJunction::Mini || (!WhyOn("WHOLE_COMPACTOLD") && J.Kind == EJunction::Ring && MapRing != nullptr && !MapRing->Circle && MapRing->Radius < 8.5)) && J.Arms.size() >= 3 && J.Arms.size() <= 6;
 		const bool Kind = MiniWhole || J.Kind == EJunction::T || J.Kind == EJunction::Cross || J.Kind == EJunction::Fork || J.Kind == EJunction::Stagger || J.Kind == EJunction::Multi || Gap || Slip;
 		if (!Kind) { if (WhyOn("WHOLE_WHY")) std::printf("kind1 node %d kind %d arms %zu pairs %d dual %d span %.1f\n", J.Nodes.empty() ? -1 : J.Nodes[0], int(J.Kind), J.Arms.size(), Pairs, int(J.Dual), J.Span); Refuse(1); continue; }
 		// ([smooth junctions stage 5c] one half of a dual met there, its other half not: a T or crossroads of one-way arms,
 		// built whole as any other; both halves there (an arm with a Pair) is still turned down below, code 6)
 		if (J.Dual && DualOld) { Refuse(2); continue; }
-		if (J.Ring >= 0) { Refuse(3); continue; }
+		if (J.Ring >= 0 && !MiniWhole) { Refuse(3); continue; }   // ([stage 7] a mini or compact ring's own roads inside its piece)
 		// ([stage 7] a cluster up to 20 m across too, a small triangle at a T or a crossroads of three or four points: just over
 		// JunctionMerge, turned down, their old pieces stepped 25-70 m2 each, Grassington, Ambleside)
 		static const double SpanMost = WhyOn("WHOLE_SPANMOST") ? std::atof(std::getenv("WHOLE_SPANMOST")) : 20.0;
@@ -664,7 +667,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		const bool RideEnd = !RideEndOld && RideArms == 1 && J.Arms.size() >= 3 && (J.At.DistanceTo(Road.front().At) < 8.0 || J.At.DistanceTo(Road.back().At) < 8.0);
 		const bool RideMode = WholeRideTurns && (RideArms == 2 || RideEnd) && J.Arms.size() >= 3;
 		for (const JunctionArm& A : J.Arms)
-			Fits = Fits && (RideMode || !OnRide[size_t(A.Edge)]) && !G.CircuitEdge(A.Edge) && (Gap || A.Pair < 0) && G.Edges[size_t(A.Edge)].A != G.Edges[size_t(A.Edge)].B;
+			Fits = Fits && (RideMode || !OnRide[size_t(A.Edge)]) && !G.CircuitEdge(A.Edge) && (Gap || MiniWhole || A.Pair < 0) && G.Edges[size_t(A.Edge)].A != G.Edges[size_t(A.Edge)].B;
 		for (int E : J.Inside) Fits = Fits && !OnRide[size_t(E)] && !G.CircuitEdge(E);
 		if (!Fits) { Refuse(6); continue; }
 		for (const Span& Sp : G.Spans)
@@ -767,7 +770,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			double Need = Half[A] + 1.5, ClusterNeed = 0.0;
 			for (size_t B = 0; B < Arms.size(); ++B)
 			{
-				if (A == B || (Gap && Arms[A].Pair == int(B))) continue;   // (its pair: the reservation between)
+				if (A == B || ((Gap || MiniWhole) && Arms[A].Pair == int(B))) continue;   // (its pair: the reservation between)
 				const double Th = Apart(Arms[A].Away, Arms[B].Away);
 				if (Th > WholeAcross) continue;
 				// ([smooth junctions stage 7] two arms from a cluster's different points: out along this one until its edge is
