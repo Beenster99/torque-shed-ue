@@ -1083,6 +1083,27 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 				const bool RingA = JunctionPlaces[size_t(KV.second.first)].Ring >= 0, RingB = JunctionPlaces[size_t(Other->second.first)].Ring >= 0;
 				if (!RingKeepOld && RingA != RingB) Mine = RingB;
 			}
+			// ([stage 7] the loser keeps its piece with a shorter mouth on this road where it can still keep half its cut and
+			// 3 m: forks and clusters a short road apart were turned down whole. WHOLE_SHRINKOLD: turned down, as before)
+			if (!BothDown && !WhyOn("WHOLE_SHRINKOLD"))
+			{
+				static const double ShrinkFrac = WhyOn("WHOLE_SHRINKFRAC") ? std::atof(std::getenv("WHOLE_SHRINKFRAC")) : 0.5;
+				auto* Lk = Mine ? &KV.second : &Other->second;
+				auto* Wk = Mine ? &Other->second : &KV.second;
+				const int Ex = Lk == &KV.second ? End : 1 - End;
+				const double Left = Long * 0.9 - Wk->second;
+				if (Left >= 3.0 && Left >= ShrinkFrac * Lk->second)
+				{
+					const int Jx = Lk->first;
+					bool Got = false;
+					for (size_t A = 0; A < JunctionPlaces[size_t(Jx)].Arms.size() && A < WholeOf[size_t(Jx)].Cut.size(); ++A)
+					{
+						const JunctionArm& Am = JunctionPlaces[size_t(Jx)].Arms[A];
+						if (Am.Edge + 1 == Which && (G.Edges[size_t(Am.Edge)].A == Am.Node ? 0 : 1) == Ex) { WholeOf[size_t(Jx)].Cut[A] = std::fmin(WholeOf[size_t(Jx)].Cut[A], Left); Got = true; }
+					}
+					if (Got) { Lk->second = Left; continue; }
+				}
+			}
 			const int Lose = BothDown || Mine ? KV.second.first : Other->second.first;
 			WholeOf[size_t(Lose)].Ok = false;
 			WholeWhy[size_t(Lose)] = 11;
