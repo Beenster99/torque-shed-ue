@@ -2060,6 +2060,7 @@ public:
 	std::unordered_map<int, int> WholeInside;   // a road wholly inside a whole junction (not drawn) -> the junction
 	std::unordered_map<int, std::vector<int>> WholeArmsOf;   // a road -> the whole junctions it is an arm of
 	void PlanWholeJunctions(const std::vector<int>& Path);   // (Path: the ride's road's edges, as LaySides has them)
+	std::unordered_map<long long, std::vector<int>> FillCells;   // [smooth junctions stage 7] map edges by 64 m square, for WholeFillOf
 	double WholeFillOf(const JunctionPlace& J, const std::vector<JunctionArm>& Arms, const std::vector<double>& Half, const WholePlan& W, const std::vector<int>* Own = nullptr, double* Intrude = nullptr) const;   // [stage 7] tarmac a planned piece lays over 4 m off every road (m2)
 	bool WholeRimOf(const JunctionPlace& J, const std::vector<JunctionArm>& Arms, const std::vector<double>& Half, const WholePlan& W, std::vector<P2>& Rim) const;   // [stage 7] a planned piece's rim, roughly
 	double WholeCut(int Which, int End) const;   // how far in from that end a road stops for its whole junction, 0 none
@@ -2099,6 +2100,7 @@ public:
 	static constexpr double WholeShapeCell = 0.5;
 	std::unordered_map<long long, std::vector<int>> WholeCells;   // whole junctions by 64 m cell of the ground they may lie on
 	void WholePiece(int Junction, RideMesh& Out, WholeShape* Shape = nullptr) const;
+	void WholePieceIn(int Ji, RideMesh& Out, WholeShape* Shape = nullptr) const;
 	// [smooth junctions stage 4] A roundabout drawn as a circle built whole: one place (Made) whose inside is the ring's own
 	// edges (laid for their heights, not drawn) and whose arms are the roads onto it, cut WholeRingCut back; drawn as one
 	// band round the ring by bearing and a flared mouth to each arm, its surface the ring's own heights smoothed round,
