@@ -2566,7 +2566,7 @@ void ATorqueRideWorld::BuildKitLooks()
 	// [house kit] Each design of detached house in each of its colourways as one mesh with three levels of detail
 	// (close, middle, far: the parts tagged for each), drawn as instances wherever a square has one of them.
 	TorqueWorld::SetHouseInstancing(false);
-	if (const std::shared_ptr<const TorqueWorld::HouseKit> Hk = TorqueWorld::HouseKitNow(); Hk && URidePart::StaticLooks())
+	if (const std::shared_ptr<const TorqueWorld::HouseKit> Hk = TorqueWorld::HouseKitNow(); Hk)   // (built once for the ride, whatever torque.RideStaticParts says: that one is for the squares' own pieces)
 	{
 		const double HouseStart = FPlatformTime::Seconds();
 		int32 HouseMeshes = 0, HouseTris = 0;
@@ -2603,9 +2603,9 @@ void ATorqueRideWorld::BuildKitLooks()
 				if (It.Key() >= HouseLookKey(0)) It.RemoveCurrent();
 	}
 	const std::shared_ptr<const TorqueWorld::WarehouseKit> Wk = TorqueWorld::WarehouseKitNow();
-	if (!Wk || !URidePart::StaticLooks())
+	if (!Wk)   // (like the houses: built once, whatever torque.RideStaticParts says)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit %s"), !Wk ? TEXT("none") : TEXT("laid into the squares (no static looks)"));
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit none"));
 		return;
 	}
 	const double Start = FPlatformTime::Seconds();
