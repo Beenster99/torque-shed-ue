@@ -2603,9 +2603,12 @@ void ATorqueRideWorld::BuildKitLooks()
 				if (It.Key() >= HouseLookKey(0)) It.RemoveCurrent();
 	}
 	const std::shared_ptr<const TorqueWorld::WarehouseKit> Wk = TorqueWorld::WarehouseKitNow();
-	if (!Wk || !URidePart::StaticLooks())
+	// [build 176 PC: torque.RideStaticParts has been off since build 149, so this never ran] The kit's meshes
+	// are made once here at the ride's start, not square by square as RideStaticParts' were (the game thread cost
+	// that turned those off), so they don't wait on it.
+	if (!Wk)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit %s"), !Wk ? TEXT("none") : TEXT("laid into the squares (no static looks)"));
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: warehouse kit none"));
 		return;
 	}
 	const double Start = FPlatformTime::Seconds();
