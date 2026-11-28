@@ -4076,6 +4076,9 @@ void ATorqueBikePawn::ShowHead(bool bShow)
 	{
 		bHeadShown = bShow;
 		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown, true);   // (its decal skins with it)
+		// [first person] The body goes from your own view with the head (the rig's body here; the
+		// MetaHuman's in ShowRiderAvatar).
+		if (RiderBody) RiderBody->SetOwnerNoSee(!bShow);
 		ShowRiderAvatar();
 		return;
 	}
@@ -4090,6 +4093,12 @@ void ATorqueBikePawn::ShowRiderAvatar()
 	if (RiderBody) RiderBody->SetVisibility(false);
 	// Hair stays hidden: the helmet's on.
 	RiderAvatar.SetShown(bRiderShown, bRiderShown && bHeadShown, false);
+	// [first person] Build 176, beenster: from the eyes you saw your own neck, collar and chest (the
+	// Trident's jacket, the adventure bike's T-shirt) in front of the dash, on every bike. With the
+	// head hidden (first person, the chin camera) the body and clothes go from your own view as well:
+	// only the bars, dash and mirrors are in front of you. The others still see you, and your shadow
+	// on the road keeps its rider.
+	RiderAvatar.SetBodyOwnerHidden(bRiderShown && !bHeadShown);
 }
 
 void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt, bool bSat)

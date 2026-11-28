@@ -6132,6 +6132,18 @@ int BikeParts::V2Gauges(const PartsMap& Parts, std::vector<FittedPart>& Out) con
 			// (A bike drawn with no clocks at all, the MX bikes: the display comes with a small black case.)
 			if (G.Flag("case", false))
 				Code(CodeShapes::Box(V3(W + 0.012, 0.014, H + 0.012)), C - Tilt.Y * 0.0072, "black_metal");
+			// [TFT] A round display drawn on the bike ("shape": "round", the Trident 800's, build 176,
+			// beenster: "the TFT should be the round one by default for the trident"): a disc face as
+			// wide as the drawn screen's narrower side, lit with the round screen's layout.
+			if (G.Str("shape") == "round")
+			{
+				const double D = std::min(W, H);
+				const std::string RoundSize = std::to_string(int(std::lround(D * 1000.0))) + "x" + std::to_string(int(std::lround(D * 1000.0)));
+				Code(CodeShapes::ScreenFace(D, D, true), C + Tilt.Y * 0.0013, "glass");
+				Works("screen_round_" + RoundSize, C + Tilt.Y * 0.0013, 1.0);
+				++Made;
+				continue;
+			}
 			Code(CodeShapes::ScreenFace(W, H, false), C + Tilt.Y * 0.0013, "glass");
 			// ([TFT] an upright screen, the KTM 1390's: the upright layout)
 			Works(std::string(H > W * 1.15 ? "screen_tall_" : "screen_wide_") + Size, C + Tilt.Y * 0.0013, 1.0);

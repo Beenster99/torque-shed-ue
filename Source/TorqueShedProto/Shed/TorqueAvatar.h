@@ -131,6 +131,10 @@ public:
 	// [hands] Your own body seen from inside it: the face and hair hidden from you (the owner), still
 	// seen by the others and still casting their shadows.
 	void SetOwnerView(bool bFirstPerson);
+	// [first person] Riding in first person: the body and clothes hidden from you (the owner) too,
+	// so the view from the eyes shows the bars and dash, not your own neck, collar and chest (build
+	// 176, beenster). Still seen by the others, still in your shadow on the road.
+	void SetBodyOwnerHidden(bool bHide);
 	void Destroy();
 	bool IsValid() const { return Driver != nullptr; }
 	FString Name;
@@ -144,6 +148,7 @@ private:
 	TWeakObjectPtr<USceneComponent> JacketPart;
 	int32 JacketOn = 0;
 	bool bBodyShown = true;
+	bool bBodyOwnerHidden = false;   // SetBodyOwnerHidden
 	USceneComponent* TopGarment() const;   // the shirt (hidden under the jacket: it clipped through, build 160)
 	void SetJacket(int32 Which);
 	FVector RideHead = FVector::ZeroVector;

@@ -861,6 +861,7 @@ void FTorqueAvatar::Destroy()
 	JacketPart.Reset();
 	JacketOn = 0;
 	bBodyShown = true;
+	bBodyOwnerHidden = false;
 	bRode = false;
 	FaceMesh = nullptr;
 	FaceFromDriver.Reset();
@@ -1320,6 +1321,27 @@ void FTorqueAvatar::SetOwnerView(bool bFirstPerson)
 	}
 }
 
+void FTorqueAvatar::SetBodyOwnerHidden(bool bHide)
+{
+	bBodyOwnerHidden = bHide;
+	if (!Driver) return;
+	auto Hide = [this, bHide](UPrimitiveComponent* C)
+	{
+		if (!C || C == FaceMesh) return;
+		for (const TWeakObjectPtr<USceneComponent>& H : Hair)
+			if (H.Get() == C) return;
+		if (C->bOwnerNoSee != bHide) C->SetOwnerNoSee(bHide);
+	};
+	Hide(Driver);
+	for (const TWeakObjectPtr<USceneComponent>& P : Parts) Hide(Cast<UPrimitiveComponent>(P.Get()));
+	if (AActor* A = Spawned.Get())
+	{
+		TArray<UPrimitiveComponent*> Prims;
+		A->GetComponents(Prims);
+		for (UPrimitiveComponent* C : Prims) Hide(C);
+	}
+}
+
 void FTorqueAvatar::TouchHair()
 {
 	// Round 126: the hair drew only where each groom was first made (a mass floating at the line-up's
@@ -1539,6 +1561,7 @@ void FTorqueAvatar::SetJacket(int32 Which)
 	J->RegisterComponent();
 	J->SetLeaderPoseComponent(Driver, true);
 	J->SetVisibility(bBodyShown, false);
+	J->SetOwnerNoSee(bBodyOwnerHidden);   // [first person]
 	JacketPart = J;
 	Parts.Add(J);
 	if (USceneComponent* Top = TopGarment()) Top->SetVisibility(false, false);   // the shirt under it (it clipped through)

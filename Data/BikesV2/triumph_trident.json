@@ -138,6 +138,7 @@
   "gauges": [
    {
     "what": "screen",
+    "shape": "round",
     "at": [
      1156.6,
      1.8,
