@@ -12,6 +12,8 @@
 //                         and all, and RoutesEach more between random junctions for each style): each step that goes
 //                         against a one-way road (G2, roundabouts too: G3), takes a banned turn or a private road
 //                         between public ones (G4), and how many service roads it uses between public ones.
+//   {"t":"turns", ...}    [road rulebook G7] the sat nav's turns along the ride's road (along, which way, roundabout exit),
+//                         the ride's road as laid every 5 m (along, x, z), and its junctions (along, x, z, roads there).
 // Coordinates are metres east (x) and south (z) of the junction's or stretch's middle. The checker judges; this
 // only measures, so the rules can change without building again.
 
@@ -350,6 +352,42 @@ static void Routes(const RidePlan& Plan, std::string& Out, int& Count)
 		}
 	}
 }
+
+// [road rulebook G7] What the sat nav says against the road as laid: its turns, the road, the junctions.
+static void TurnsRec(const RidePlan& Plan, std::string& Out)
+{
+	char Buf[256];
+	const Region& G = Plan.Area.Roads;
+	Out += "{\"t\":\"turns\",\"turns\":[";
+	for (size_t K = 0; K < Plan.Turns.size(); ++K)
+	{
+		std::snprintf(Buf, sizeof(Buf), "%s[%.1f,%d,%d]", K ? "," : "", Plan.Turns[K].Along, Plan.Turns[K].Turn, Plan.Turns[K].Exit);
+		Out += Buf;
+	}
+	Out += "],\"road\":[";
+	double Last = -1e9;
+	bool Any = false;
+	for (const RoadPoint& P : Plan.Road)
+	{
+		if (P.Along - Last < 5.0) continue;
+		Last = P.Along;
+		std::snprintf(Buf, sizeof(Buf), "%s[%.1f,%.2f,%.2f]", Any ? "," : "", P.Along, P.At.X, P.At.Z);
+		Out += Buf;
+		Any = true;
+	}
+	Out += "],\"nodes\":[";
+	Any = false;
+	for (const RidePlan::PathNode& N : Plan.PathNodes)
+	{
+		if (N.Node < 0 || size_t(N.Node) >= G.Nodes.size()) continue;
+		const RoadExtra* X = N.Next >= 0 ? G.ExtraOf(N.Next) : nullptr;
+		std::snprintf(Buf, sizeof(Buf), "%s[%.1f,%.2f,%.2f,%zu,%d]", Any ? "," : "", N.Along, G.Nodes[size_t(N.Node)].X, G.Nodes[size_t(N.Node)].Z, G.Adjacent[size_t(N.Node)].size(),
+			X != nullptr && X->Has(RoadExtra::Roundabout) ? 1 : 0);
+		Out += Buf;
+		Any = true;
+	}
+	Out += "]}\n";
+}
 } // namespace RulesDumpImpl
 
 void RulesDump(const RidePlan& Plan, const std::string& Path)
@@ -479,6 +517,7 @@ void RulesDump(const RidePlan& Plan, const std::string& Path)
 	}
 	int RouteCount = 0;
 	Routes(Plan, All, RouteCount);
+	TurnsRec(Plan, All);
 	Files::Write(Path, All);
 	std::printf("rules dump: %d junctions, %d stretches, %d roundabouts, %d routes to %s\n", Junctions, Stretches, Rings, RouteCount, Path.c_str());
 }

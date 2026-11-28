@@ -17,6 +17,7 @@ place (OpenStreetMap tiles, kept in <dir>/tiles).
 Every rule here measures what is drawn (the paint and tarmac from above), not what the code meant to draw.
 Coordinates: metres east (x) and south (z) of the junction's middle.
 """
+import bisect
 import json, math, os, sys
 from collections import defaultdict
 
@@ -655,6 +656,62 @@ def judge_route(rec, rep, area):
         rep.notes['routes using a service road between public ones'] += 1
 
 
+def turn_kind(a):
+    # (the sat nav's: radians, + to the left; -3 sharp left .. 3 sharp right, as RideNavBits::TurnKind)
+    size = 0 if abs(a) < 0.35 else 1 if abs(a) < 0.87 else 2 if abs(a) < 2.1 else 3
+    return -size if a > 0 else size
+
+
+def judge_turns(rec, rep, area):
+    # G7: the sat nav's turns against the ride's road as laid. Each turn said at a junction of the ride, its way the way
+    # the laid road turns there (left or right; how sharp only where the road plainly turns); each plain turn of the laid
+    # road at a junction said.
+    road = rec['road']
+    if len(road) < 3:
+        return
+    al = [r[0] for r in road]
+
+    def at(a):
+        i = min(max(bisect.bisect_left(al, a), 0), len(road) - 1)
+        return road[i][1], road[i][2]
+
+    def laid_turn(a, before=30.0, after=30.0):
+        p0, p1, p2 = at(a - before), at(a), at(a + after)
+        i = (p1[0] - p0[0], p1[1] - p0[1])
+        o = (p2[0] - p1[0], p2[1] - p1[1])
+        if math.hypot(*i) < 1 or math.hypot(*o) < 1:
+            return None
+        return math.atan2(o[0] * i[1] - o[1] * i[0], o[0] * i[0] + o[1] * i[1])
+
+    def wh(a):
+        x, z = at(a)
+        return {'area': area, 'along': round(a), 'x': x, 'z': z, 'ride': 'ridden'}
+
+    nodes = [n for n in rec['nodes'] if n[3] >= 3]
+    said = [t for t in rec['turns'] if t[1] != 9]
+    for a, kind, ex in said:
+        near = [n for n in nodes if abs(n[0] - a) < 30.0]
+        w = wh(a)
+        rep.check('G7', bool(near), w, 1.0, f"turn {kind:+d} said {a:.0f} m along where the ride has no junction")
+        if not near or ex:
+            continue
+        lt = laid_turn(a)
+        if lt is None:
+            continue
+        real = turn_kind(lt)
+        if abs(real) >= 2 or abs(kind) >= 2:
+            ok = real == 0 and abs(kind) <= 1 or kind == 0 and abs(real) <= 1 or (real > 0) == (kind > 0) and abs(real - kind) <= 1
+            rep.check('G7', ok, w, abs(real - kind), f"said {kind:+d} where the laid road turns {math.degrees(-lt):+.0f} degrees ({real:+d})")
+    for n in nodes:
+        if n[4]:
+            continue
+        lt = laid_turn(n[0], 25.0, 25.0)
+        if lt is None or abs(lt) < 0.87:
+            continue
+        rep.check('G7', any(abs(t[0] - n[0]) < 40.0 for t in rec['turns']), wh(n[0]), 1.0,
+                  f"the road turns {math.degrees(-lt):+.0f} degrees at a junction and nothing is said")
+
+
 def judge_ring(rec, rep, area):
     pts = rec['ride']
     # (the turn the ride makes round the middle: x east, z south, so clockwise from above is + in x, z)
@@ -869,6 +926,8 @@ def main(argv):
                 judge_ring(rec, rep, area)
             elif t == 'route':
                 judge_route(rec, rep, area)
+            elif t == 'turns':
+                judge_turns(rec, rep, area)
         per_area[area] = {'junctions': total, 'clean': good}
     summary = {'rules': {}, 'areas': per_area, 'notes': dict(rep.notes), 'meta': meta}
     for rid in sorted(set(rep.checked) | set(rep.breach)):
