@@ -755,9 +755,15 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		static const bool StubCut = !WhyOn("WHOLE_NOSTUB");   // (the checker can compare without the stub cut)
 		// ([smooth junctions stage 5c] where an arm hasn't the room before the next junction, tried again with tight corners
 		// (WholeCornerTight): most arms turned down for room wanted under 2 m more than they had)
-		for (int Try = 0; Try < (CornerOld ? 1 : 2); ++Try)
+		// ([stage 7] and a third time, the tight corners and each arm short of room cut at what room it has (ShortFrac of what
+		// it wanted at least): its mouth nearer the middle than its neighbours' clear tarmac wants, but the piece one surface;
+		// turned down, the old pieces stepped worse, a fifth of the bad junctions turned down for room (code 10).
+		// WHOLE_SHORTOLD: as before)
+		static const bool ShortOld = WhyOn("WHOLE_SHORTOLD");
+		static const double ShortFrac = WhyOn("WHOLE_SHORTFRAC") ? std::atof(std::getenv("WHOLE_SHORTFRAC")) : 0.5;
+		for (int Try = 0; Try < (CornerOld ? 1 : ShortOld ? 2 : 3); ++Try)
 		{
-		if (Try == 1)
+		if (Try >= 1)
 		{
 			if (Fits) break;
 			Fits = true;
@@ -831,6 +837,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			if (OnRide[size_t(Arms[A].Edge)]) continue;   // (along the ride's road: room checked against its ends and other hides)
 			const bool DeadEnd = size_t(FarNode) < G.Adjacent.size() && G.Adjacent[size_t(FarNode)].size() == 1;
 			if (W.Cut[A] > Room && DeadEnd && StubCut && Room >= Half[A] + 1.0) W.Cut[A] = Room;
+			if (Try == 2 && W.Cut[A] > Room && Room >= Half[A] + 1.0 && Room >= ShortFrac * W.Cut[A]) W.Cut[A] = Room;
 			if (W.Cut[A] > Room)
 			{
 				Fits = false;   // (no room before the junction at its other end)
@@ -1033,7 +1040,15 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 					}
 				}
 			}
-			const bool Mine = KV.second.second != Other->second.second ? KV.second.second > Other->second.second : KV.second.first > Other->second.first;
+			bool Mine = KV.second.second != Other->second.second ? KV.second.second > Other->second.second : KV.second.first > Other->second.first;
+			// ([stage 7] a roundabout keeps its piece against a junction at its arm's other end: that junction down, not the
+			// ring, ten of Telford's ring points stepped 6-17 m2 when a cluster cut short of room won the road between.
+			// WHOLE_RINGKEEPOLD: the greedier down, as before)
+			{
+				static const bool RingKeepOld = WhyOn("WHOLE_RINGKEEPOLD");
+				const bool RingA = JunctionPlaces[size_t(KV.second.first)].Ring >= 0, RingB = JunctionPlaces[size_t(Other->second.first)].Ring >= 0;
+				if (!RingKeepOld && RingA != RingB) Mine = RingB;
+			}
 			const int Lose = BothDown || Mine ? KV.second.first : Other->second.first;
 			WholeOf[size_t(Lose)].Ok = false;
 			WholeWhy[size_t(Lose)] = 11;
