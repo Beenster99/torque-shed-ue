@@ -62,6 +62,8 @@ const bool SpanOld = WhyOn("WHOLE_SPANOLD");   // (the checker can turn down clu
 const bool CrossoverOld = WhyOn("WHOLE_CROSSOVEROLD");   // (the checker can turn down a dual's lone gap as before)
 const bool BandOld = WhyOn("WHOLE_BANDOLD");
 const bool FillOld = WhyOn("WHOLE_FILLOLD");
+const bool MiniOld = WhyOn("WHOLE_MINIOLD");   // (the checker can leave mini roundabouts' rings to the old drawing, as before)
+const bool RingCutOld = WhyOn("WHOLE_RINGCUTOLD");   // (the checker can turn down a ring with an arm a little short, as before)
 const bool RingNearOld = WhyOn("WHOLE_RINGNEAROLD");   // (the checker can take a ring's nearest mouth's surface alone, as before)
 const double RingRoomLeast = WhyOn("WHOLE_RINGROOM") ? std::atof(std::getenv("WHOLE_RINGROOM")) : -2.5;   // ([stage 7] two ring arms may overlap at its edge by this much (m): their mouths meet halfway, each one's surface eased into the other's; at -0.5 they were turned down, 40 rings, Whitby, Scarborough. WHOLE_RINGROOM=-0.5: as before)
 const bool ForeignOld = WhyOn("WHOLE_FOREIGNOLD");   // (the checker can leave another road's tarmac across a piece 10-15 cm off it, as before)
@@ -638,7 +640,10 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// ([smooth junctions stage 5c] and a slip's triangle at a T: the links round its little island one piece with the
 		// roads, the island tarmac (stage 6 paints it); its links' own pieces overlapped 10-20 cm apart, Penrith)
 		const bool Slip = !SlipOld && J.Kind == EJunction::Slip;
-		const bool Kind = J.Kind == EJunction::T || J.Kind == EJunction::Cross || J.Kind == EJunction::Fork || J.Kind == EJunction::Stagger || J.Kind == EJunction::Multi || Gap || Slip;
+		// ([stage 7] a mini roundabout: one piece across, its little ring of roads inside it, the dome painted on (Swindon:
+		// its old pieces stepped and showed grass between the ring's short roads). WHOLE_MINIOLD: as before)
+		const bool MiniWhole = !MiniOld && J.Kind == EJunction::Mini && J.Arms.size() >= 3 && J.Arms.size() <= 6;
+		const bool Kind = MiniWhole || J.Kind == EJunction::T || J.Kind == EJunction::Cross || J.Kind == EJunction::Fork || J.Kind == EJunction::Stagger || J.Kind == EJunction::Multi || Gap || Slip;
 		if (!Kind) { if (WhyOn("WHOLE_WHY")) std::printf("kind1 node %d kind %d arms %zu pairs %d dual %d span %.1f\n", J.Nodes.empty() ? -1 : J.Nodes[0], int(J.Kind), J.Arms.size(), Pairs, int(J.Dual), J.Span); Refuse(1); continue; }
 		// ([smooth junctions stage 5c] one half of a dual met there, its other half not: a T or crossroads of one-way arms,
 		// built whole as any other; both halves there (an arm with a Pair) is still turned down below, code 6)
@@ -648,7 +653,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// JunctionMerge, turned down, their old pieces stepped 25-70 m2 each, Grassington, Ambleside)
 		static const double SpanMost = WhyOn("WHOLE_SPANMOST") ? std::atof(std::getenv("WHOLE_SPANMOST")) : 20.0;
 		if (J.Span > (Gap ? JunctionGap : Slip ? JunctionSlip : SpanOld ? JunctionMerge : SpanMost)) { if (WhyOn("WHOLE_WHY")) std::printf("span4 node %d kind %d span %.1f arms %zu pairs %d gap %d slip %d dual %d\n", J.Nodes.empty() ? -1 : J.Nodes[0], int(J.Kind), J.Span, J.Arms.size(), Pairs, int(Gap), int(Slip), int(J.Dual)); Refuse(4); continue; }
-		if (J.Arms.size() < 3 || J.Arms.size() > (DualCross || DualPair ? 8u : Gap ? 6u : 5u)) { Refuse(5); continue; }
+		if (J.Arms.size() < 3 || J.Arms.size() > (DualCross || DualPair ? 8u : Gap || MiniWhole ? 6u : 5u)) { Refuse(5); continue; }
 		bool Fits = true;
 		// ([smooth junctions stage 5c] the ride's road through it or turning at it, two of its arms: built whole too, the ride's
 		// road not drawn between their mouth lines, as round a ring (4b); its old mouths and square turns knocked 2-9 cm)
@@ -2392,7 +2397,10 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 		// ([smooth junctions stage 7] an arm out from a divide, the junction just past it (two metres on, A14): its mouth
 		// line between the two, the piece drawn out along the divide's roads to it)
 		if (W.Cut[A] > Most && !ShortDivideOld && Gone[A] <= 0.0 && Most >= 0.4 && std::find(Rr.Nodes.begin(), Rr.Nodes.end(), J.Arms[A].Node) == Rr.Nodes.end()) W.Cut[A] = Most;
-		if (W.Cut[A] > Most) { WholeWhy[Ji] = static_cast<unsigned char>(27); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 7 cut %.1f long %.1f gone %.1f at %.0f %.0f\n", J.Ring, W.Cut[A], Long, Gone[A], J.At.X, J.At.Z); return; }
+		// ([smooth junctions stage 7] still too long by a little (Milton Keynes' short links between its rings): its mouth just
+		// past the ring's edge, 30 cm, and a metre less room for the junction at its far end. WHOLE_RINGCUTOLD: as before)
+		if (W.Cut[A] > Most && !RingCutOld && Gone[A] + 0.3 <= std::fmax(0.5 * Long, Long - 5.0)) W.Cut[A] = std::fmax(Gone[A] + 0.3, std::fmin(W.Cut[A], std::fmax(0.5 * Long, Long - 5.0)));
+		if (W.Cut[A] > std::fmax(0.5 * Long, Long - 5.0) || (RingCutOld && W.Cut[A] > Most)) { WholeWhy[Ji] = static_cast<unsigned char>(27); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 7 cut %.1f long %.1f gone %.1f at %.0f %.0f\n", J.Ring, W.Cut[A], Long, Gone[A], J.At.X, J.At.Z); return; }
 	}
 	// ([smooth junctions 4b] the ride's road's mouths the same way past its corners; not drawn between them)
 	for (size_t R = 0; R < RideEdge.size(); ++R)
@@ -2412,14 +2420,21 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 	}
 	// (each mouth line clear of the ring, as RingPiece needs it: its piece can't be drawn otherwise, its roads hidden: holes, Milton Keynes)
 	{
-		const auto Clear = [&Rr](const P2& C, const P2& U, double Hf) { const P2 Sd(U.Z, -U.X); return Rr.OffOf(C + Sd * Hf) > Rr.Half + 2.0 && Rr.OffOf(C - Sd * Hf) > Rr.Half + 2.0; };
+		double Margin = 2.0;
+		const auto Clear = [&Rr, &Margin](const P2& C, const P2& U, double Hf) { const P2 Sd(U.Z, -U.X); return Rr.OffOf(C + Sd * Hf) > Rr.Half + Margin && Rr.OffOf(C - Sd * Hf) > Rr.Half + Margin; };
 		for (size_t A = 0; A < N; ++A)
 		{
 			// (out along it until it is, as far as there is room: 2 m clear on the map's line, for the road as laid beside it)
 			const std::vector<P2> Line = G.LineFrom(J.Arms[A].Edge, J.Arms[A].Node);
-			const double Most = std::fmax(0.45 * G.Edges[size_t(J.Arms[A].Edge)].Length, G.Edges[size_t(J.Arms[A].Edge)].Length - 6.0);
+			const double Long = G.Edges[size_t(J.Arms[A].Edge)].Length;
+			// ([stage 7] a short arm along the ring (Milton Keynes' links): its mouth 1 m clear, a metre less room at its far end)
+			const double Most = RingCutOld ? std::fmax(0.45 * Long, Long - 6.0) : std::fmax(0.5 * Long, Long - 5.0);
+			const double From = W.Cut[A];
 			bool Fits = false;
-			for (; !Fits && W.Cut[A] <= Most; W.Cut[A] += 0.5)
+			for (int Try = 0; Try < (RingCutOld ? 1 : 2) && !Fits; ++Try)
+			{
+			Margin = Try == 0 ? 2.0 : 1.0;
+			for (W.Cut[A] = From; !Fits && W.Cut[A] <= Most; W.Cut[A] += 0.5)
 			{
 				double Run = 0.0;
 				for (size_t Q = 1; Q < Line.size(); ++Q)
@@ -2436,6 +2451,8 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 				}
 				if (Fits) break;
 			}
+			}
+			Margin = 2.0;
 			if (!Fits) { WholeWhy[Ji] = static_cast<unsigned char>(32); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 12\n", J.Ring); return; }
 		}
 		for (size_t R = 0; R < W.RideAlong.size(); ++R)
