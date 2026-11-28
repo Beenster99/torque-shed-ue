@@ -2094,7 +2094,7 @@ public:
 	void PlanWholeRing(size_t Junction, const std::vector<char>& OnRide);
 	std::unordered_map<int, int> WholeRingOf;   // a ring in RoadRings -> its whole place
 	double WholeRingTop(int Ring, const P2& At) const;   // its tarmac's surface at a point, NaN unless built whole
-	static constexpr double WholeRingFall = 0.015, WholeRingFlareLeast = 4.0, WholeRingPairLong = 40.0, WholeRingArmLeast = 25.0;
+	static constexpr double WholeRingFall = 0.015, WholeRingFlareLeast = 4.0, WholeRingPairLong = 40.0, WholeRingArmLeast = 25.0, WholeGyrLeast = 15.0;
 	double MouthCut(int Which, int End) const;   // [smooth junctions 3b] a mouth on the ride's road drawn whole: where its road's own rows start (-1: the old way)
 	std::shared_ptr<const WholeShape> WholeShapeOf(int Junction) const;
 	double WholeGround(double X, double Z, double Out) const;   // the ground kept under any whole junction's tarmac here
