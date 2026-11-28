@@ -3264,7 +3264,7 @@ int main(int Argc, char** Argv)
 						if (!std::isnan(L) && L > Hi[K] + 0.03)
 						{
 							F.Land += 2.0 * A1;
-							if (Only >= 0 && F.Land < 0.6) std::printf("jland at %.1f, %.1f: land %.3f over tarmac %.3f\n", Px, Pz, L, double(Hi[K]));
+							if (Only >= 0 && (F.Land < 0.6 || std::getenv("JLAND"))) std::printf("jland at %.1f, %.1f: land %.3f over tarmac %.3f\n", Px, Pz, L, double(Hi[K]));
 						}
 					}
 				}
