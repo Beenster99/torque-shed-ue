@@ -62,6 +62,8 @@ const bool SpanOld = WhyOn("WHOLE_SPANOLD");   // (the checker can turn down clu
 const bool CrossoverOld = WhyOn("WHOLE_CROSSOVEROLD");   // (the checker can turn down a dual's lone gap as before)
 const bool BandOld = WhyOn("WHOLE_BANDOLD");
 const bool FillOld = WhyOn("WHOLE_FILLOLD");
+const bool RingNearOld = WhyOn("WHOLE_RINGNEAROLD");   // (the checker can take a ring's nearest mouth's surface alone, as before)
+const double RingRoomLeast = WhyOn("WHOLE_RINGROOM") ? std::atof(std::getenv("WHOLE_RINGROOM")) : -2.5;   // ([stage 7] two ring arms may overlap at its edge by this much (m): their mouths meet halfway, each one's surface eased into the other's; at -0.5 they were turned down, 40 rings, Whitby, Scarborough. WHOLE_RINGROOM=-0.5: as before)
 const bool ForeignOld = WhyOn("WHOLE_FOREIGNOLD");   // (the checker can leave another road's tarmac across a piece 10-15 cm off it, as before)
 const bool ClusterCutOld = WhyOn("WHOLE_CLUSTERCUTOLD");   // (the checker can cut a cluster's arms as if all came from its middle, as before)   // (the checker can build pieces that fill in a block, as before)
 const double WholeFillMost = WhyOn("WHOLE_FILLMOST") ? std::atof(std::getenv("WHOLE_FILLMOST")) : 60.0;   // (the checker can leave a corner's grass band over the piece's tarmac, as before)
@@ -2368,7 +2370,7 @@ void RidePlan::PlanWholeRing(size_t Ji, const std::vector<char>& OnRide)
 		double Gap = Nt == 1 ? TwoPi - (Hi[A] - Lo[A]) : std::remainder(Lo[B] - Hi[A], TwoPi);
 		if (Gap < -1.0) Gap += TwoPi;   // (more than half way round to the next: two arms across from each other)
 		const double Room = Gap * Outer * 0.5 - 0.25;
-		if (Room < -0.5) { WholeWhy[Ji] = static_cast<unsigned char>(26); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 6 room %.1f at %.0f %.0f arms %zu %zu pair %d %d in %d%d out %d%d\n", J.Ring, Room, J.At.X, J.At.Z, A, B, A < N ? J.Arms[A].Pair : -9, B < N ? J.Arms[B].Pair : -9, A < N ? int(J.Arms[A].In) : 9, B < N ? int(J.Arms[B].In) : 9, A < N ? int(J.Arms[A].Out) : 9, B < N ? int(J.Arms[B].Out) : 9); return; }   // (two arms over each other at the edge; closer than a corner's room, an entry and an exit: the facing corners straight in, the splitter island between)
+		if (Room < RingRoomLeast) { WholeWhy[Ji] = static_cast<unsigned char>(26); if (WhyOn("WHOLE_RING_WHY")) std::printf("ring %d no: 6 room %.1f at %.0f %.0f arms %zu %zu pair %d %d in %d%d out %d%d\n", J.Ring, Room, J.At.X, J.At.Z, A, B, A < N ? J.Arms[A].Pair : -9, B < N ? J.Arms[B].Pair : -9, A < N ? int(J.Arms[A].In) : 9, B < N ? int(J.Arms[B].In) : 9, A < N ? int(J.Arms[A].Out) : 9, B < N ? int(J.Arms[B].Out) : 9); return; }   // (two arms over each other at the edge; closer than a corner's room, an entry and an exit: the facing corners straight in, the splitter island between)
 		W.Flare[2 * A + 1] = std::fmin(W.Flare[2 * A + 1], std::fmax(0.0, Room));
 		W.Flare[2 * B] = std::fmin(W.Flare[2 * B], std::fmax(0.0, Room));
 	}
@@ -2728,7 +2730,32 @@ void RidePlan::RingPiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 		Opts.OnlyRoad = Mouths[Best].Which;
 		NearHit Hit;
 		if (!NearestOf(P.X, P.Z, Opts, Hit)) return Ring;
-		const double Arm = Hit.Height + Hit.Cross;
+		double Arm = Hit.Height + Hit.Cross;
+		// ([smooth junctions stage 7] two mouths close together (arms touching at the ring's edge): between them each one's
+		// own surface weighted by nearness, not the nearer's alone, which stood 30 cm above its neighbour's, Whitby.
+		// WHOLE_RINGNEAROLD: as before)
+		if (!RingNearOld)
+		{
+			double Sum = 0.0, Wsum = 0.0;
+			for (size_t K = 0; K < N; ++K)
+			{
+				const double D = ToSegment(P, Mouths[K].E0[0], Mouths[K].E0[1]);
+				if (D > Dm + 4.0) continue;
+				double H = Arm;
+				if (K != Best)
+				{
+					NearOpts Ko;
+					Ko.OnlyRoad = Mouths[K].Which;
+					NearHit Hk;
+					if (!NearestOf(P.X, P.Z, Ko, Hk)) continue;
+					H = Hk.Height + Hk.Cross;
+				}
+				const double Wt = 1.0 / std::pow(D + 0.5, 4.0) * (1.0 - Ease01((D - Dm) / 4.0));
+				Sum += Wt * H;
+				Wsum += Wt;
+			}
+			if (Wsum > 1e-30) Arm = Sum / Wsum;
+		}
 		const double T = Ease01((Off - Half) / std::fmax(1e-3, Off - Half + Dm));
 		return Ring + (Arm - Ring) * T;
 	};
