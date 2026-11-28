@@ -1243,6 +1243,9 @@ void RidePlan::IndexPlaceRecipes()
 			}
 			if (Moved) ++PlacesMoved;
 		}
+		// ([Ladybower, build 176] not out in the water: a drowned village's ruins, a church under a reservoir, are under
+		// the water the game draws full; by the land's cover, as the fields aren't indexed yet)
+		if (Land && (Land->Cover(R.At.X, R.At.Z) == Terrain::CoverWater || Land->SeaAt(R.At.X, R.At.Z))) continue;
 		R.Base = Ground(R.At.X, R.At.Z);
 		if (std::isnan(R.Base)) continue;
 		++RecipeCount[Kind];

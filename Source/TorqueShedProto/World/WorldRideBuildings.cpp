@@ -278,7 +278,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			const int Baked = B.More.empty() ? 0 : int(B.More[0]);
 			const bool Role = Each.Index >= 0 && size_t(Each.Index) < BuildingRole.size() && BuildingRole[size_t(Each.Index)] == 1;
 			if (!(Baked == 6 || Called == "church" || Called == "chapel" || Role) || Called == "cathedral" || Called == "ruins" || Called == "ruin") continue;
-			if (UnderTower(B.X, B.Z)) continue;
+			if (UnderTower(B.X, B.Z) || Drowned(B)) continue;
 			// (its whole outline, where the map's came cut in pieces: their corners along the main piece's sides)
 			const double Cs0 = std::cos(B.Yaw), Sn0 = std::sin(B.Yaw);
 			double U0 = -B.W * 0.5, U1 = B.W * 0.5, V0 = -B.D * 0.5, V1 = B.D * 0.5;
@@ -479,6 +479,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		if (UnderTower(B.X, B.Z))
 		{
 			if (Tally) ++Tally->UnderTowers;
+			continue;
+		}
+		if (Drowned(B))   // [Ladybower, build 176] (out in a lake's or reservoir's water)
+		{
+			if (Tally) ++Tally->Drowned;
 			continue;
 		}
 		const double Base = Ground(B.X, B.Z);
@@ -2092,7 +2097,7 @@ void RidePlan::FarBuildingsTile(double X0, double Z0, double Size, double Coarse
 			for (const std::pair<double, int>& Pick0 : Chosen)
 			{
 				const Building& B = G.Buildings[size_t(Pick0.second)];
-				if (UnderTower(B.X, B.Z)) continue;
+				if (UnderTower(B.X, B.Z) || Drowned(B)) continue;
 				const double Base = Ground(B.X, B.Z, Coarse);
 				if (std::isnan(Base)) continue;
 				const LocalLook& Look = LookHere(B.X, B.Z);

@@ -213,7 +213,7 @@ void RidePlan::IndexChurchyards()
 	for (size_t I = 0; I < G.Buildings.size(); ++I)
 	{
 		const Building& B = G.Buildings[I];
-		if (!B.More.empty() && int(B.More[0]) == 6 && B.W >= 2.0 && B.D >= 2.0) Worship.push_back(int(I));
+		if (!B.More.empty() && int(B.More[0]) == 6 && B.W >= 2.0 && B.D >= 2.0 && !Drowned(B)) Worship.push_back(int(I));   // ([Ladybower] not a drowned village's church)
 	}
 	std::sort(Worship.begin(), Worship.end(), [&G](int A, int B) { return G.Buildings[size_t(A)].W * G.Buildings[size_t(A)].D > G.Buildings[size_t(B)].W * G.Buildings[size_t(B)].D; });
 	std::vector<char> Used(Worship.size(), 0);

@@ -1131,6 +1131,11 @@ public:
 	bool NearWater(double X, double Z, double& Dist, double& Surface, double& Half, double& Depth, int* Kind = nullptr, bool* Beside = nullptr) const;   // (Beside: alongside it, not past either end)
 	// A lake's (or reservoir's) water level at (X, Z) if it is in one's outline, else NaN.
 	double StillLevel(double X, double Z) const;
+	// [Ladybower, build 176] Whether a building stands out in a lake's or reservoir's water: its middle and three
+	// of its four corners in the outline (one the map has there, a drowned village's ruins, a boathouse's outline
+	// drawn over the water, is not drawn; one on the shore, half over it, still is).
+	bool Drowned(const Building& B) const;
+	bool InStillWater(double X, double Z) const;   // (in a lake's or reservoir's outline)
 	// ([real water, Nov 25] the buildings by a river or canal, by every WaterCell square: no channel is cut
 	// under one, so a mill or a house the map puts over a river's outline stands on its own ground)
 	std::unordered_map<long long, std::vector<Building>> WaterHouses;
@@ -1275,7 +1280,8 @@ public:
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
 		int KitChurches = 0;   // [churches stage 3] places of worship built from the church kit
 		int FarmKit = 0;   // [everyday kits stage 4] farm buildings built from the farm kit
-		int HouseKit = 0;   // [house kit] detached houses built from the house kit
+		int HouseKit = 0;
+	int Drowned = 0;   // [Ladybower] (out in a lake's or reservoir's water: not drawn)   // [house kit] detached houses built from the house kit
 		int VillageKit = 0;   // [everyday kits stage 6] schools built from the village kit
 		int Hipped = 0, LeanTo = 0;   // [towns stage 3.4] houses' roofs
 		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
