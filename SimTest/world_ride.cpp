@@ -3213,7 +3213,11 @@ int main(int Argc, char** Argv)
 						const double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
 						const double Slope = std::hypot(Nx, Nz) / std::fmax(1e-9, std::fabs(Ny));
 						const double Mx = (X[0] + X[1] + X[2]) / 3.0, Mz = (Z[0] + Z[1] + Z[2]) / 3.0;
-						if (Tar && std::hypot(Mx, Mz) < Reach && Slope > 1.0 && std::max({Y[0], Y[1], Y[2]}) - std::min({Y[0], Y[1], Y[2]}) > 0.05)
+						// ([smooth junctions stage 7] and standing over 8 cm (a step's height) across its narrowest: a sliver a few cm wide along a run of points
+						// (a mouth's stub) read steep from its tilt alone, flat along its length, unseen; a real wall is a step anyway)
+						const double Longest = std::sqrt(std::max({Ax * Ax + Az * Az, Bx * Bx + Bz * Bz, (Bx - Ax) * (Bx - Ax) + (Bz - Az) * (Bz - Az)}));
+						const double Narrow = 2.0 * Area / std::fmax(1e-9, Longest);
+						if (Tar && std::hypot(Mx, Mz) < Reach && Slope > 1.0 && std::max({Y[0], Y[1], Y[2]}) - std::min({Y[0], Y[1], Y[2]}) > 0.05 && (std::getenv("JSPIKE_OLD") || Slope * Narrow > 0.08))
 						{
 							F.Spike += 1.0;
 							if (Only >= 0) std::printf("jspike road %d: (%.2f %.2f %.3f) (%.2f %.2f %.3f) (%.2f %.2f %.3f)\n", W, X[0], Z[0], Y[0], X[1], Z[1], Y[1], X[2], Z[2], Y[2]);
@@ -3283,6 +3287,7 @@ int main(int Argc, char** Argv)
 						const size_t K = size_t(Cz) * JCells + Cx;
 						const double Px = -Reach + (Cx + 0.5) * Cell, Pz = -Reach + (Cz + 0.5) * Cell;
 						if (std::hypot(Px, Pz) > Reach || Hi[K] < -1e8f || Rough[K]) continue;
+						if (Plan->InCarPark(C.X + Px, C.Z + Pz) || Plan->OnForecourt(C.X + Px, C.Z + Pz)) continue;   // (their own tarmac)
 						bool Close = false;
 						for (const Seg& Sg : Segs)
 						{
