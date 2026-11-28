@@ -2824,6 +2824,7 @@ int main(int Argc, char** Argv)
 	{
 		std::vector<std::pair<double, std::string>> Times;
 		double Sum = 0.0, Check = 0.0;
+		size_t TurfAll = 0, TrisAll = 0, KnotsAll = 0, RoadsAll = 0;
 		for (const int W : LaidRoads(*Plan))
 		{
 			const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
@@ -2837,12 +2838,15 @@ int main(int Argc, char** Argv)
 				Sum += PieceMs;
 				for (size_t V = 0; V < Piece.Pos.size(); ++V) Check += double(Piece.Pos[V]) * double((V % 7) + 1);
 				char Line[200];
-				std::snprintf(Line, sizeof(Line), "road %d knots %d-%d at %.0f,%.0f: %zu tris", W, First, Last, Pts[size_t(First)].At.X, Pts[size_t(First)].At.Z, Piece.Idx.size() / 3);
+				std::snprintf(Line, sizeof(Line), "road %d knots %d-%d at %.0f,%.0f: %zu tris, turf %zu verts", W, First, Last, Pts[size_t(First)].At.X, Pts[size_t(First)].At.Z, Piece.Idx.size() / 3, Piece.Turf ? Piece.Turf->Vertices() : size_t(0));
+				TurfAll += Piece.Turf ? Piece.Turf->Vertices() : size_t(0); TrisAll += Piece.Idx.size() / 3;
+				KnotsAll += size_t(Last - First); if (First == 0) ++RoadsAll;
 				Times.emplace_back(PieceMs, Line);
 			}
 		}
 		std::sort(Times.begin(), Times.end(), [](const std::pair<double, std::string>& A, const std::pair<double, std::string>& B) { return A.first > B.first; });
-		std::printf("road pieces: %zu, %.0f ms in all (check %.3f)\n", Times.size(), Sum, Check);
+		std::printf("road pieces: %zu, %.0f ms in all (check %.3f), %zu tris, turf %zu verts, %zu roads, %zu knots\n", Times.size(), Sum, Check, TrisAll, TurfAll, RoadsAll, KnotsAll);
+
 		for (size_t I = 0; I < Times.size() && I < 12; ++I) std::printf("  %.1f ms  %s\n", Times[I].first, Times[I].second.c_str());
 		// (=2: then all of them again and again, for a profiler to sample)
 		if (std::atoi(std::getenv("WORLD_RIDE_PIECETIME")) == 2)

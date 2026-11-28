@@ -15,6 +15,8 @@
 #include "WorldRideRoadX.h"
 
 #include <algorithm>
+#include <atomic>
+#include <cstdlib>
 #include <unordered_set>
 #include <cmath>
 #include <cstdio>
@@ -156,12 +158,18 @@ void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::v
 	// ([smooth junctions stage 5c] once more where the surface bends: each edge whose middle stands off the straight line
 	// between its ends by more than Tol halved (chosen by the edge, so two triangles sharing it agree), each triangle
 	// cut by its halved edges; at two levels a whole piece's facets were 2-3 cm out where its arms' roads bend, a knock)
-	if (Height != nullptr)
+	// ([stage 7] WHOLE_FILLADAPT: no even splitting (Levels 0 from the caller); the bend pass run up to FillPasses times,
+	// an edge halved where the surface bends off it or it is longer than FillEdge: York's pieces were 1,000 triangles
+	// each on average, 3 million of its road's 9 million, split as finely on a flat square as where it bends)
+	static const int FillPasses = std::getenv("WHOLE_FILLPASSES") ? std::atoi(std::getenv("WHOLE_FILLPASSES")) : 4;
+	static const double FillEdge = std::getenv("WHOLE_FILLEDGE") ? std::atof(std::getenv("WHOLE_FILLEDGE")) : 6.0;
+	const bool Adapt = Levels < 0;
+	std::vector<double> H;
+	for (int Pass = 0; Pass < (Adapt ? FillPasses : 1) && Height != nullptr; ++Pass)
 	{
 		std::unordered_map<long long, size_t> Split;
 		const auto Key = [](size_t A, size_t B) { return static_cast<long long>(std::min(A, B)) * 1000003LL + static_cast<long long>(std::max(A, B)); };
-		std::vector<double> H(Pt.size());
-		for (size_t I = 0; I < Pt.size(); ++I) H[I] = (*Height)(Pt[I]);
+		for (size_t I = H.size(); I < Pt.size(); ++I) H.push_back((*Height)(Pt[I]));
 		const auto Bent = [&](size_t A, size_t B)
 		{
 			const long long K = Key(A, B);
@@ -170,7 +178,7 @@ void FillRim(const std::vector<P2>& Rim, int Levels, std::vector<P2>& Pt, std::v
 			const P2 Mid = (Pt[A] + Pt[B]) * 0.5;
 			const double Hm = (*Height)(Mid);
 			size_t Got = size_t(-1);
-			if (std::fabs(Hm - 0.5 * (H[A] + H[B])) > Tol && Pt[A].DistanceTo(Pt[B]) > 0.3) { Pt.push_back(Mid); H.push_back(Hm); Got = Pt.size() - 1; }
+			if ((std::fabs(Hm - 0.5 * (H[A] + H[B])) > Tol && Pt[A].DistanceTo(Pt[B]) > 0.3) || (Adapt && Pt[A].DistanceTo(Pt[B]) > FillEdge)) { Pt.push_back(Mid); H.push_back(Hm); Got = Pt.size() - 1; }
 			Split[K] = Got;
 			return Got;
 		};
@@ -414,8 +422,19 @@ double RidePlan::WholeFillOf(const JunctionPlace& J, const std::vector<JunctionA
 	if (X1 - X0 > 400.0 || Z1 - Z0 > 400.0) return 1e9;
 	// (every map road whose line comes near, with its half width)
 	std::vector<std::pair<int, double>> Near;
-	for (size_t E = 0; E < G.Edges.size(); ++E)
+	// ([stage 7] from the 64 m squares the box touches (FillCells), not every road in the region: a quarter of York's plan)
+	std::vector<int> Cand;
+	for (long long Cx = (long long)std::floor((X0 - 60.0) / 64.0); Cx <= (long long)std::floor((X1 + 60.0) / 64.0); ++Cx)
+		for (long long Cz = (long long)std::floor((Z0 - 60.0) / 64.0); Cz <= (long long)std::floor((Z1 + 60.0) / 64.0); ++Cz)
+		{
+			const auto It = FillCells.find(Cx * 4000003LL + Cz);
+			if (It != FillCells.end()) Cand.insert(Cand.end(), It->second.begin(), It->second.end());
+		}
+	std::sort(Cand.begin(), Cand.end());
+	Cand.erase(std::unique(Cand.begin(), Cand.end()), Cand.end());
+	for (const int Ce : Cand)
 	{
+		const size_t E = size_t(Ce);
 		const std::vector<P2>& L = G.Edges[E].Line;
 		bool In = false;
 		for (const P2& P : L) In = In || (P.X > X0 - 60.0 && P.X < X1 + 60.0 && P.Z > Z0 - 60.0 && P.Z < Z1 + 60.0);
@@ -594,6 +613,21 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 	// a circuit, paired or a loop, 7 bridge or tunnel near, 8 by the ride's road, 9 an arm twice, 10 an arm too short, 11 a road
 	// between two too short)
 	WholeWhy.assign(JunctionPlaces.size(), 0);
+	FillCells.clear();
+	for (size_t E = 0; E < G.Edges.size(); ++E)
+	{
+		const std::vector<P2>& L = G.Edges[E].Line;
+		for (size_t I = 0; I < L.size(); ++I)
+		{
+			const P2 A = L[I], B = I + 1 < L.size() ? L[I + 1] : L[I];
+			for (long long Cx = (long long)std::floor(std::fmin(A.X, B.X) / 64.0); Cx <= (long long)std::floor(std::fmax(A.X, B.X) / 64.0); ++Cx)
+				for (long long Cz = (long long)std::floor(std::fmin(A.Z, B.Z) / 64.0); Cz <= (long long)std::floor(std::fmax(A.Z, B.Z) / 64.0); ++Cz)
+				{
+					std::vector<int>& V = FillCells[Cx * 4000003LL + Cz];
+					if (V.empty() || V.back() != int(E)) V.push_back(int(E));
+				}
+		}
+	}
 	// ([stage 7] every junction's inside roads, by place: an arm followed on past plain points stops before another's,
 	// whose piece draws it; followed in, the clash turned the bigger down, a dual crossing beside a T 46 m off, Newcastle)
 	std::unordered_map<int, int> InsideOfPlace;
@@ -1419,6 +1453,23 @@ bool RidePlan::CutRow(const std::vector<RoadPoint>& Pts, double Along, RoadPoint
 
 void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 {
+	// (WHOLE_TRICOUNT: the triangles whole pieces and rings add, printed at exit; a developer's count for the fps budget)
+	static std::atomic<size_t> TriWhole{0}, TriRing{0}, CallsWhole{0}, CallsRing{0};
+	static const bool TriCount = WhyOn("WHOLE_TRICOUNT") && std::atexit([] { std::printf("whole tris %zu in %zu pieces, ring tris %zu in %zu\n", TriWhole.load(), CallsWhole.load(), TriRing.load(), CallsRing.load()); }) == 0;
+	if (TriCount && Shape == nullptr)
+	{
+		const size_t Before = Out.Idx.size();
+		const bool Ring = Ji >= 0 && size_t(Ji) < JunctionPlaces.size() && JunctionPlaces[size_t(Ji)].Made;
+		const_cast<const RidePlan*>(this)->WholePieceIn(Ji, Out, Shape);
+		(Ring ? TriRing : TriWhole) += (Out.Idx.size() - Before) / 3;
+		++(Ring ? CallsRing : CallsWhole);
+		return;
+	}
+	WholePieceIn(Ji, Out, Shape);
+}
+
+void RidePlan::WholePieceIn(int Ji, RideMesh& Out, WholeShape* Shape) const
+{
 	using namespace WholeJunctionBits;
 	if (Ji < 0 || size_t(Ji) >= JunctionPlaces.size() || !WholeOf[size_t(Ji)].Ok) return;
 	if (JunctionPlaces[size_t(Ji)].Made) { RingPiece(Ji, Out, Shape); return; }   // [smooth junctions stage 4]
@@ -1858,7 +1909,13 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	// ([5c] one on the ride's road split once more: its crown and banking under the arms' blend read as 2-3 cm facets)
 	const bool OnRideRoad = std::any_of(W.ArmSign.begin(), W.ArmSign.end(), [](int S) { return S != 0; });
 	const std::function<double(const P2&)> SurfaceAt = [&Surface](const P2& At) { return Surface(At); };
-	FillRim(Rim, OnRideRoad ? 3 : 2, Pt, Ears, WhyOn("WHOLE_NOBEND") ? nullptr : &SurfaceAt, 0.005);
+	// ([stage 7] split evenly once less, 1 level (2 on the ride's road), the bend pass after as before: York's pieces were
+	// 1,000 triangles each on average, 3 million of its road's 9; half that, and fewer spikes on 10 places, 3,059 to 1,648.
+	// WHOLE_FILLLV / WHOLE_FILLLVRIDE: other levels, 2 and 3 as before)
+	static const int FillLv = WhyOn("WHOLE_FILLLV") ? std::atoi(std::getenv("WHOLE_FILLLV")) : 1, FillLvRide = WhyOn("WHOLE_FILLLVRIDE") ? std::atoi(std::getenv("WHOLE_FILLLVRIDE")) : 2;
+	static const double FillTol = WhyOn("WHOLE_FILLTOL") ? std::atof(std::getenv("WHOLE_FILLTOL")) : 0.005;
+	static const bool FillAdapt = WhyOn("WHOLE_FILLADAPT");   // (tried: the bend pass alone made slivers, spikes doubled)
+	FillRim(Rim, FillAdapt ? -1 : OnRideRoad ? FillLvRide : FillLv, Pt, Ears, WhyOn("WHOLE_NOBEND") ? nullptr : &SurfaceAt, FillTol);
 	if (WhyOn("WHOLE_TRIS")) std::printf("wholetris %zu\n", Ears.size());
 	std::vector<uint32_t> Vtx(Pt.size());
 	for (size_t I = 0; I < Pt.size(); ++I) Vtx[I] = Vertex(Pt[I], Surface(Pt[I]), Top, SlopeAt(Pt[I]));
