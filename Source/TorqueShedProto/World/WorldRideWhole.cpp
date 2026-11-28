@@ -62,6 +62,7 @@ const bool SpanOld = WhyOn("WHOLE_SPANOLD");   // (the checker can turn down clu
 const bool CrossoverOld = WhyOn("WHOLE_CROSSOVEROLD");   // (the checker can turn down a dual's lone gap as before)
 const bool BandOld = WhyOn("WHOLE_BANDOLD");
 const bool FillOld = WhyOn("WHOLE_FILLOLD");
+const bool ForeignOld = WhyOn("WHOLE_FOREIGNOLD");   // (the checker can leave another road's tarmac across a piece 10-15 cm off it, as before)
 const bool ClusterCutOld = WhyOn("WHOLE_CLUSTERCUTOLD");   // (the checker can cut a cluster's arms as if all came from its middle, as before)   // (the checker can build pieces that fill in a block, as before)
 const double WholeFillMost = WhyOn("WHOLE_FILLMOST") ? std::atof(std::getenv("WHOLE_FILLMOST")) : 60.0;   // (the checker can leave a corner's grass band over the piece's tarmac, as before)
 const bool DashSplitOld = WhyOn("WHOLE_DASHSPLITOLD");   // (the checker can run the ride's dashes across on A's way, as before)   // (the checker can leave room for a junction at an arm's plain far point, as before)
@@ -330,9 +331,8 @@ bool DivideEdges(const Region& G, const RidePlan::RoadRing& Rr, const std::vecto
 }
 } // namespace WholeJunctionBits
 
-// ([smooth junctions stage 7] The tarmac a planned piece would lay more than 4 m beyond every road's edge (m2), as the
-// junction checker finds it: its rim as WholePiece draws it, from each arm's mouth on its map line, round its corners.)
-double RidePlan::WholeFillOf(const JunctionPlace& J, const std::vector<JunctionArm>& Arms, const std::vector<double>& Half, const WholePlan& W) const
+// ([smooth junctions stage 7] A planned piece's rim, as WholePiece draws it, from each arm's mouth on its map line.)
+bool RidePlan::WholeRimOf(const JunctionPlace& J, const std::vector<JunctionArm>& Arms, const std::vector<double>& Half, const WholePlan& W, std::vector<P2>& Rim) const
 {
 	using namespace WholeJunctionBits;
 	const Region& G = Area.Roads;
@@ -341,7 +341,7 @@ double RidePlan::WholeFillOf(const JunctionPlace& J, const std::vector<JunctionA
 	for (size_t A = 0; A < Arms.size(); ++A)
 	{
 		const RoadEdge& E = G.Edges[size_t(Arms[A].Edge)];
-		if (E.Line.size() < 2) return 0.0;
+		if (E.Line.size() < 2) return false;
 		std::vector<P2> L = E.Line;
 		if (E.A != Arms[A].Node) std::reverse(L.begin(), L.end());
 		double Left = A < W.Cut.size() ? W.Cut[A] : 0.0;
@@ -356,7 +356,7 @@ double RidePlan::WholeFillOf(const JunctionPlace& J, const std::vector<JunctionA
 			if (D >= Left || I + 1 == L.size()) { M.At = L[I - 1] + M.Out * std::fmin(Left, D); Set = true; }
 			Left -= D;
 		}
-		if (!Set) return 0.0;
+		if (!Set) return false;
 		M.Left = P2(M.Out.Z, -M.Out.X);
 		Ms.push_back(M);
 	}
@@ -364,7 +364,7 @@ double RidePlan::WholeFillOf(const JunctionPlace& J, const std::vector<JunctionA
 	std::vector<size_t> Order(N);
 	for (size_t I = 0; I < N; ++I) Order[I] = I;
 	std::sort(Order.begin(), Order.end(), [&](size_t A, size_t B) { const P2 Pa = Ms[A].At - J.At, Pb = Ms[B].At - J.At; return std::atan2(Pa.Z, Pa.X) < std::atan2(Pb.Z, Pb.X); });
-	std::vector<P2> Rim;
+	Rim.clear();
 	for (size_t K = 0; K < N; ++K)
 	{
 		const FillMouth& M = Ms[Order[K]];
@@ -389,6 +389,18 @@ double RidePlan::WholeFillOf(const JunctionPlace& J, const std::vector<JunctionA
 			Rim.push_back(Corner ? To * ((1 - T) * (1 - T)) + Meet * (2 * T * (1 - T)) + NextFrom * (T * T) : To + (NextFrom - To) * T);
 		}
 	}
+	return Rim.size() >= 3;
+}
+
+// ([smooth junctions stage 7] The tarmac a planned piece would lay more than 4 m beyond every road's edge (m2), as the
+// junction checker finds it: its rim as WholePiece draws it, from each arm's mouth on its map line, round its corners.)
+double RidePlan::WholeFillOf(const JunctionPlace& J, const std::vector<JunctionArm>& Arms, const std::vector<double>& Half, const WholePlan& W, const std::vector<int>* Own, double* Intrude) const
+{
+	if (Intrude) *Intrude = 0.0;
+	using namespace WholeJunctionBits;
+	const Region& G = Area.Roads;
+	std::vector<P2> Rim;
+	if (!WholeRimOf(J, Arms, Half, W, Rim)) return 0.0;
 	double X0 = 1e18, Z0 = 1e18, X1 = -1e18, Z1 = -1e18;
 	for (const P2& P : Rim) { X0 = std::fmin(X0, P.X); Z0 = std::fmin(Z0, P.Z); X1 = std::fmax(X1, P.X); Z1 = std::fmax(Z1, P.Z); }
 	if (X1 - X0 > 400.0 || Z1 - Z0 > 400.0) return 1e9;
@@ -424,6 +436,20 @@ double RidePlan::WholeFillOf(const JunctionPlace& J, const std::vector<JunctionA
 				if (!Clear) break;
 			}
 			if (Clear) Filled += Cell * Cell;
+			// (and how much of it another road, not its own, runs over: its tarmac laid on the piece's)
+			if (Intrude != nullptr)
+			{
+				bool Over = false;
+				for (const auto& [E, H] : Near)
+				{
+					if (std::find_if(Arms.begin(), Arms.end(), [E = E](const JunctionArm& Am) { return Am.Edge == E; }) != Arms.end()) continue;
+					if (std::find(J.Inside.begin(), J.Inside.end(), E) != J.Inside.end() || (Own != nullptr && std::find(Own->begin(), Own->end(), E) != Own->end())) continue;
+					const std::vector<P2>& L = G.Edges[size_t(E)].Line;
+					for (size_t I = 1; I < L.size() && !Over; ++I) Over = ToSegment(Q, L[I - 1], L[I]) < H;
+					if (Over) break;
+				}
+				if (Over) *Intrude += Cell * Cell;
+			}
 		}
 	return Filled;
 }
@@ -573,6 +599,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			for (const JunctionArm& A : Jp.Arms) RingRoads.insert(A.Edge);
 			RingRoads.insert(Jp.Inside.begin(), Jp.Inside.end());
 		}
+	std::vector<std::vector<P2>> PlannedRim(JunctionPlaces.size());   // (each piece's rim, roughly: for finding two that overlap)
 	std::unordered_set<int> MapRingEdges;   // (every road the map calls a roundabout's, a ring found or not)
 	for (size_t E = 0; E < Area.Roads.Edges.size(); ++E)
 	{
@@ -874,11 +901,13 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		// streets: a cluster's or a five ways' arms cut far out, the straight edges across their wide gaps laid tarmac over
 		// what was grass or yards, 300 m2 of it at Cardiff's Canton. Its old pieces are the roads' own. Not a dual's gap: its
 		// reservation's nose reads as fill, and turned down its old pieces stepped 7 m2. WHOLE_FILLOLD: as before)
-		if (!RideMode && !FillOld && !Gap && Arms.size() >= 3)
+		if (!RideMode && (!FillOld || WhyOn("WHOLE_WHY") || WhyOn("WHOLE_OVERMOST")) && Arms.size() >= 3)
 		{
-			const double Fill = WholeFillOf(J, Arms, Half, W);
-			if (WhyOn("WHOLE_WHY")) std::printf("fill15 node %d fill %.1f\n", J.Nodes.empty() ? -1 : J.Nodes[0], Fill);
-			if (Fill > WholeFillMost) { Refuse(15); continue; }
+			double Over = 0.0;
+			const double Fill = WholeFillOf(J, Arms, Half, W, &Extra, &Over);
+			if (WhyOn("WHOLE_WHY")) std::printf("fill15 node %d fill %.1f over %.1f\n", J.Nodes.empty() ? -1 : J.Nodes[0], Fill, Over);
+			if (!FillOld && !Gap && Fill > WholeFillMost) { Refuse(15); continue; }
+			if (WhyOn("WHOLE_OVERMOST") && Over > std::atof(std::getenv("WHOLE_OVERMOST"))) { Refuse(16); continue; }
 		}
 		JunctionPlaces[Ji].Arms = Arms;
 		JunctionPlaces[Ji].Inside.insert(JunctionPlaces[Ji].Inside.end(), Extra.begin(), Extra.end());
@@ -897,6 +926,7 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 		if (RideMode) { W.Owner = 0; W.OwnerEnd = 0; RideHides.emplace_back(W.Hide[0], int(Ji)); }
 		if (RideMode && WhyOn("WHOLE_WHY")) for (size_t A = 0; A < Arms.size(); ++A) std::printf("ridewhole node %d arm %zu edge %d sign %d cut %.1f half %.1f\n", J.Nodes.empty() ? -1 : J.Nodes[0], A, Arms[A].Edge, W.ArmSign[A], W.Cut[A], Half[A]);
 		WholeOf[Ji] = W;
+		if (!RideMode) WholeRimOf(J, Arms, Half, W, PlannedRim[Ji]);
 		for (size_t A = 0; A < Arms.size(); ++A)
 		{
 			if (W.ArmSign[A] != 0) continue;
@@ -912,6 +942,32 @@ void RidePlan::PlanWholeJunctions(const std::vector<int>& Path)
 			WholeArmsOf[Which].push_back(int(Ji));
 		}
 		for (int E : J.Inside) WholeInside[E + 1] = int(Ji);
+	}
+	if (WhyOn("WHOLE_OVERLAP"))
+	{
+		const auto InRim = [](const std::vector<P2>& R, const P2& Q)
+		{
+			bool In = false;
+			for (size_t A = 0, B = R.size() - 1; A < R.size(); B = A++)
+				if ((R[A].Z > Q.Z) != (R[B].Z > Q.Z) && Q.X < (R[B].X - R[A].X) * (Q.Z - R[A].Z) / (R[B].Z - R[A].Z) + R[A].X) In = !In;
+			return In;
+		};
+		for (size_t A = 0; A < PlannedRim.size(); ++A)
+			for (size_t B = A + 1; B < PlannedRim.size(); ++B)
+			{
+				const std::vector<P2>& Ra = PlannedRim[A], &Rb = PlannedRim[B];
+				if (Ra.size() < 3 || Rb.size() < 3 || !WholeOf[A].Ok || !WholeOf[B].Ok) continue;
+				double X0 = 1e18, Z0 = 1e18, X1 = -1e18, Z1 = -1e18, U0 = 1e18, V0 = 1e18, U1 = -1e18, V1 = -1e18;
+				for (const P2& P : Ra) { X0 = std::fmin(X0, P.X); Z0 = std::fmin(Z0, P.Z); X1 = std::fmax(X1, P.X); Z1 = std::fmax(Z1, P.Z); }
+				for (const P2& P : Rb) { U0 = std::fmin(U0, P.X); V0 = std::fmin(V0, P.Z); U1 = std::fmax(U1, P.X); V1 = std::fmax(V1, P.Z); }
+				X0 = std::fmax(X0, U0); Z0 = std::fmax(Z0, V0); X1 = std::fmin(X1, U1); Z1 = std::fmin(Z1, V1);
+				if (X0 >= X1 || Z0 >= Z1) continue;
+				double Both = 0.0;
+				for (double Z = Z0 + 0.25; Z < Z1; Z += 0.5)
+					for (double X = X0 + 0.25; X < X1; X += 0.5)
+						if (InRim(Ra, P2(X, Z)) && InRim(Rb, P2(X, Z))) Both += 0.25;
+				if (Both > 0.5) std::printf("overlap %d %d area %.1f\n", JunctionPlaces[A].Nodes.empty() ? -1 : JunctionPlaces[A].Nodes[0], JunctionPlaces[B].Nodes.empty() ? -1 : JunctionPlaces[B].Nodes[0], Both);
+			}
 	}
 	// (a road both of whose ends are whole junctions: its two cuts must leave some of it between them)
 	for (auto& KV : WholeEnds)
@@ -1392,7 +1448,7 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 	const bool PieceDbg = WhyOn("WHOLE_PIECE_DBG") && [&J]() { const char* Nv = std::getenv("WHOLE_WHY_NODE"); if (!Nv) return true; for (int Nd : J.Nodes) if (Nd == std::atoi(Nv)) return true; return false; }();
 	if (PieceDbg)
 		for (size_t A = 0; A < N; ++A)
-			std::printf("piecedbg %d arm %zu which %d end %d sign %d cut %.2f at %.2f %.2f out %.3f %.3f half %.2f paved %d\n", Ji, A, Mouths[A].Which, Mouths[A].End, A < W.ArmSign.size() ? W.ArmSign[A] : 0, W.Cut[A], Mouths[A].P.At.X - J.At.X, Mouths[A].P.At.Z - J.At.Z, Mouths[A].Out.X, Mouths[A].Out.Z, Mouths[A].P.Half, int(Mouths[A].Paved));
+			std::printf("piecedbg %d arm %zu which %d end %d sign %d cut %.2f at %.2f %.2f out %.3f %.3f half %.2f paved %d h %.2f rise %.3f\n", Ji, A, Mouths[A].Which, Mouths[A].End, A < W.ArmSign.size() ? W.ArmSign[A] : 0, W.Cut[A], Mouths[A].P.At.X - J.At.X, Mouths[A].P.At.Z - J.At.Z, Mouths[A].Out.X, Mouths[A].Out.Z, Mouths[A].P.Half, int(Mouths[A].Paved), Mouths[A].P.Height, Mouths[A].Rise);
 	// (round the junction in order of the heading out)
 	std::vector<size_t> Order(N);
 	for (size_t I = 0; I < N; ++I) Order[I] = I;
@@ -1477,7 +1533,7 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 		}
 		return Weight > 1e-30 ? Sum / Weight : Mouths[0].P.Height;
 	};
-	const auto Surface = [&](const P2& At)
+	const auto SurfaceOwn = [&](const P2& At)
 	{
 		if (ThroughB >= 0)
 		{
@@ -1503,6 +1559,69 @@ void RidePlan::WholePiece(int Ji, RideMesh& Out, WholeShape* Shape) const
 			return Ht + (ArmsBlend(At, false) - Ht) * Off;
 		}
 		return ArmsBlend(At, false);
+	};
+	// ([smooth junctions stage 7] another road, not one of its own, laid across the piece (a dual's other half running on
+	// past where the two split, Nottingham's Beeston): the piece takes that road's own surface under it, eased back to its
+	// own over 1.5 m, so the two meet instead of lying 10-15 cm apart. WHOLE_FOREIGNOLD: as before)
+	struct ForeignBit { int Which; RoadPoint A, B; };
+	std::vector<ForeignBit> Foreign;
+	if (!ForeignOld)
+	{
+		Rect Box;
+		Box.X0 = J.At.X - W.Reach; Box.Z0 = J.At.Z - W.Reach; Box.X1 = J.At.X + W.Reach; Box.Z1 = J.At.Z + W.Reach;
+		for (int Which : RoadsNear(Box, false))
+		{
+			bool Own = false;
+			for (const MouthLine& M : Mouths) Own = Own || M.Which == Which;
+			for (int E : J.Inside) Own = Own || E + 1 == Which;
+			if (Own) continue;
+			const std::vector<RoadPoint>& Pts = RoadOf(Which);
+			for (size_t I = 1; I < Pts.size(); ++I)
+			{
+				if (Pts[I - 1].Bridge || Pts[I].Bridge || Pts[I - 1].Tunnel || Pts[I].Tunnel) continue;
+				if (ToSegment(J.At, Pts[I - 1].At, Pts[I].At) > W.Reach + Pts[I].Half + 2.0) continue;
+				Foreign.push_back({Which, Pts[I - 1], Pts[I]});
+			}
+		}
+	}
+	const auto Surface = [&](const P2& At)
+	{
+		const double Own = SurfaceOwn(At);
+		if (Foreign.empty() || std::isnan(Own)) return Own;
+		// (each road near weighted by how far in it is, so where two overlap it eases between them: the nearer wins no jump)
+		double Best = 0.0, Sum = 0.0, Weights = 0.0;
+		for (const ForeignBit& Fb : Foreign)
+		{
+			const P2 D = Fb.B.At - Fb.A.At;
+			const double L2 = D.X * D.X + D.Z * D.Z;
+			if (L2 < 1e-9) continue;
+			const double T = std::clamp(((At.X - Fb.A.At.X) * D.X + (At.Z - Fb.A.At.Z) * D.Z) / L2, 0.0, 1.0);
+			const P2 Q = Fb.A.At + D * T;
+			const double Dq = At.DistanceTo(Q);
+			const double Half = Fb.A.Half + (Fb.B.Half - Fb.A.Half) * T;
+			if (Dq >= Half + 1.5) continue;
+			const double Wt = Dq <= Half ? 1.0 : 1.0 - Ease01((Dq - Half) / 1.5);
+			const double L = std::sqrt(L2);
+			const double V = ((At.X - Q.X) * D.Z - (At.Z - Q.Z) * D.X) / L;   // (to its left as its points run)
+			const double H = Fb.A.Height + (Fb.B.Height - Fb.A.Height) * T + RoadLine::CrossHeight(std::clamp(V, -Half, Half), Half, Fb.A.Bank + (Fb.B.Bank - Fb.A.Bank) * T);
+			const double Wf = std::pow(Wt, 4.0) + 1e-9;   // (a road's own segments meet at its points; two roads ease across)
+			// (as drawn, settled where it joins another)
+			double Hj = H;
+			if (Fb.Which > 0 && !WhyOn("WHOLE_FOREIGNRAW"))
+			{
+				// (its settling onto another can jump where it starts: read over a metre round, so the piece leans, not steps)
+				Hj = 0.0;
+				for (const P2& Off : {P2(0.0, 0.0), P2(0.5, 0.0), P2(-0.5, 0.0), P2(0.0, 0.5), P2(0.0, -0.5)}) Hj += JoinedHeight(Fb.Which, At + Off, H) - H;
+				Hj = H + Hj / 5.0;
+			}
+			Sum += Wf * Hj;
+			Weights += Wf;
+			Best = std::fmax(Best, Wt);
+		}
+		if (Weights <= 0.0) return Own;
+		// (only one lying near the piece's own: one well above or below runs beside it on its own bank, St Ives)
+		const double Hf = Sum / Weights;
+		return Own + (Hf - Own) * Best * (1.0 - Ease01((std::fabs(Hf - Own) - 0.2) / 0.15));
 	};
 	// ([build 170] where only gravel lanes meet, the junction is their gravel)
 	const float* Top = AnyPaved ? Tarmac : Grit;
