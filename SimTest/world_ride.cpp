@@ -658,7 +658,7 @@ int main(int Argc, char** Argv)
 			std::printf("House types: %d cottages, %d in village rows, %d detached, %d semis, %d terraced, %d tenements; %d bay windows; doors: %d set down to the ground, %d with steps\n", Tally.HouseKinds[0], Tally.HouseKinds[1],
 				Tally.HouseKinds[2], Tally.HouseKinds[3], Tally.HouseKinds[4], Tally.HouseKinds[5], Tally.BayWindows, Tally.DoorsDropped, Tally.DoorSteps);
 			std::printf("Shop fronts: %d units; front garden walls: %d houses\n", Tally.ShopFronts, Tally.FrontWalls);   // [towns stage 6]
-			std::printf("House kit: %d detached houses from the kit\n", Tally.HouseKit);   // [house kit]
+			std::printf("House kit: %d detached houses from the kit; %d buildings out in a lake's water left out\n", Tally.HouseKit, Tally.Drowned);   // [house kit] [Ladybower]
 			{
 				// [towns stage 6] (the heritage lamps among the street lamps there, with WORLD_RIDE_FACADE)
 				int Heritage = 0;

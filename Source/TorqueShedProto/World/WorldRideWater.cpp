@@ -345,4 +345,26 @@ double RidePlan::StillLevel(double X, double Z) const
 	const FieldArea& F = FieldAreas[size_t(Fa)];
 	return F.Kind == FieldReservoir && !F.Flowing ? F.Level : std::nan("");
 }
+
+bool RidePlan::InStillWater(double X, double Z) const
+{
+	// (by the lakes' outlines themselves, not StillLevel's squares: the churchyards and places ask before IndexWater files them)
+	const int Fa = FieldAt(X, Z);
+	return Fa >= 0 && FieldAreas[size_t(Fa)].Kind == FieldReservoir && !FieldAreas[size_t(Fa)].Flowing;
+}
+
+bool RidePlan::Drowned(const Building& B) const
+{
+	const auto Wet = [this](double X, double Z) { return InStillWater(X, Z); };
+	if (FieldAreas.empty() || !Wet(B.X, B.Z)) return false;
+	const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
+	int Corners = 0;
+	for (int K = 0; K < 4; ++K)
+	{
+		// (each corner a little in, so a wall on the very shore line counts as on the shore)
+		const double U = (K & 1 ? 0.5 : -0.5) * B.W * 0.85, V = (K & 2 ? 0.5 : -0.5) * B.D * 0.85;
+		Corners += Wet(B.X + U * Cs + V * Sn, B.Z - U * Sn + V * Cs) ? 1 : 0;
+	}
+	return Corners >= 3;
+}
 } // namespace TorqueWorld
